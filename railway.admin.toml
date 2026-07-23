@@ -1,0 +1,11 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "corepack pnpm install --frozen-lockfile && corepack pnpm --filter @hanziquest/admin build"
+watchPatterns = ["/apps/admin/**", "/packages/contracts/**", "/package.json", "/pnpm-lock.yaml", "/pnpm-workspace.yaml"]
+
+[deploy]
+startCommand = "corepack pnpm --filter @hanziquest/admin start"
+healthcheckPath = "/"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

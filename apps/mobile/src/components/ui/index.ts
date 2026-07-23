@@ -4,7 +4,6 @@ export {
   HanziText,
   IconButton,
   LoadingState,
-  ParentGateTrigger,
   PrimaryButton,
   ProgressBar,
   Screen,

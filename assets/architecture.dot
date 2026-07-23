@@ -7,39 +7,27 @@ digraph G {
   subgraph cluster_client {
     label="客户端";
     fontname="Noto Sans CJK SC";
-    mobile [label="儿童/家长 App\nExpo + React Native + TypeScript"];
-    localdb [label="离线缓存与队列\nSQLite + SecureStore"];
+    mobile [label="青少年与成人学习 App\nExpo + React Native + TypeScript"];
+    localdb [label="离线缓存与持久化队列\nSQLite + SecureStore"];
     mobile -> localdb [label="课程、进度、待同步作答"];
   }
 
   subgraph cluster_backend {
     label="第一方后端";
     fontname="Noto Sans CJK SC";
-    auth [label="Supabase Auth\n仅家长账号"];
-    db [label="Postgres + RLS\n课程、能力、奖励、同意记录"];
-    edgefn [label="Edge Functions\n学习计划、同步、AI 网关"];
-    storage [label="Storage\n图片、音频、内容包"];
-  }
-
-  subgraph cluster_ai {
-    label="受约束 AI 服务";
-    fontname="Noto Sans CJK SC";
-    llm [label="OpenAI Responses API\nStructured Outputs"];
-    moderation [label="Moderation\n输入/输出安全检查"];
-    audio [label="TTS / STT\n仅合规后启用儿童语音"];
+    auth [label="Better Auth\n一个账号对应一个 Profile"];
+    db [label="Postgres + RLS\n用户、课程、能力与复习"];
+    api [label="Hono Node API\n学习计划与同步"];
+    storage [label="Storage\n图片、音频与内容包"];
   }
 
   admin [label="内容管理后台\nNext.js + TypeScript"];
 
-  mobile -> auth [label="登录/会话"];
-  mobile -> edgefn [label="计划、作答批量同步"];
-  mobile -> storage [label="签名资源"];
-  edgefn -> db [label="服务端规则"];
-  edgefn -> storage [label="内容与音频"];
-  admin -> db [label="课程发布/审核"];
+  mobile -> auth [label="登录与会话"];
+  mobile -> api [label="计划与作答批量同步"];
+  mobile -> storage [label="静态学习资源"];
+  api -> db [label="确定性服务端规则"];
+  api -> storage [label="课程与音频"];
+  admin -> db [label="课程发布与审核"];
   admin -> storage [label="资源管理"];
-  edgefn -> moderation [label="先审查"];
-  moderation -> llm [label="安全请求"];
-  llm -> moderation [label="生成结果复审"];
-  edgefn -> audio [label="可选语音能力"];
 }

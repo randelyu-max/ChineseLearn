@@ -256,32 +256,6 @@ export function ProgressBar({ label, reduceMotionOverride, value }: ProgressBarP
   );
 }
 
-type ParentGateTriggerProps = Pick<PressableProps, 'onPress' | 'testID'> & {
-  label?: string;
-};
-
-export function ParentGateTrigger({ label = '家长设置', onPress, testID }: ParentGateTriggerProps) {
-  return (
-    <Pressable
-      accessibilityHint="进入前需要由家长完成验证"
-      accessibilityLabel={label}
-      accessibilityRole="button"
-      onPress={onPress}
-      style={({ pressed }) => [styles.parentGate, pressed && styles.secondaryPressed]}
-      testID={testID}
-    >
-      <Text
-        accessibilityElementsHidden
-        importantForAccessibility="no-hide-descendants"
-        style={styles.parentGateIcon}
-      >
-        🔒
-      </Text>
-      <Text style={styles.parentGateLabel}>{label}</Text>
-    </Pressable>
-  );
-}
-
 type LoadingStateProps = {
   message?: string;
 };
@@ -398,23 +372,6 @@ const styles = StyleSheet.create({
     borderRadius: radii.pill,
     borderWidth: borders.thin,
     justifyContent: 'center',
-  },
-  parentGate: {
-    alignItems: 'center',
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
-    gap: spacing.sm,
-    minHeight: touchTargets.minimum,
-    paddingHorizontal: spacing.md,
-  },
-  parentGateIcon: {
-    fontSize: fontSizes.body,
-  },
-  parentGateLabel: {
-    color: colors.textSecondary,
-    fontSize: fontSizes.body,
-    fontWeight: fontWeights.semibold,
-    textDecorationLine: 'underline',
   },
   primaryButton: {
     alignItems: 'center',

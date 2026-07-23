@@ -1,0 +1,12 @@
+[build]
+builder = "RAILPACK"
+buildCommand = "corepack pnpm install --frozen-lockfile && corepack pnpm --filter @hanziquest/api build"
+watchPatterns = ["/apps/api/**", "/database/**", "/package.json", "/pnpm-lock.yaml", "/pnpm-workspace.yaml"]
+
+[deploy]
+preDeployCommand = "corepack pnpm --filter @hanziquest/api db:migrate"
+startCommand = "corepack pnpm --filter @hanziquest/api start"
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 5

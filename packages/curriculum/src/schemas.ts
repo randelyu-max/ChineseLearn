@@ -130,7 +130,7 @@ export const StorySchema = z
   .object({
     id: ContentIdSchema,
     title: ScriptTextSchema,
-    sourceType: z.enum(['editorial', 'ai_generated']),
+    sourceType: z.literal('editorial'),
     scriptTrack: ScriptVariantSchema,
     ageBand: z.enum(['5-6', '7-8', '9-10', '11-12']),
     interestTags: z.array(SlugSchema).max(8).default([]),

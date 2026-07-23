@@ -16,4 +16,6 @@ HanziQuest_完整产品技术设计.md
 docs/PRODUCT_TECH_DESIGN.md
 PACKAGE_MANIFEST.sha256
 VALIDATION_REPORT.md
-supabase_schema.sql
+**/*.sql
+**/*.toml
+.env.example

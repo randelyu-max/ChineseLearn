@@ -6,7 +6,7 @@
 
 ## Context
 
-Mobile, admin, and Edge Functions need one runtime-validated representation for identifiers,
+Mobile, admin, and the Node API need one runtime-validated representation for identifiers,
 timestamps, versions, responses, and errors. The design baseline includes an unversioned error
 example, while repository rules require a consistent versioned shape and separate child-safe text.
 

@@ -7,7 +7,7 @@ import {
   spacing,
 } from '@hanziquest/design-tokens';
 import * as Speech from 'expo-speech';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AudioButton, PrimaryButton, ProgressBar, Screen } from '@/components/ui';
@@ -41,6 +41,7 @@ import {
   retryGlyphToImage,
   selectGlyphToImageOption,
 } from '@/features/glyph-to-image';
+import { loadRecoveredCourse, saveRecoveredCourse } from '@/features/offline-course/recovery';
 import {
   createSentenceOrderState,
   recordSentenceReplay,
@@ -78,12 +79,29 @@ function attemptContext(sequence: number) {
 
 export default function DemoCourseScreen() {
   const [course, setCourse] = useState(createDemoCourseState);
+  const [recoveryReady, setRecoveryReady] = useState(false);
   const [audioState, setAudioState] = useState(() => createAudioToGlyphState(performance.now()));
   const [imageState, setImageState] = useState(() => createGlyphToImageState(performance.now()));
   const [wordState, setWordState] = useState(() => createWordBuildState(performance.now()));
   const [sentenceState, setSentenceState] = useState(() =>
     createSentenceOrderState(performance.now()),
   );
+
+  useEffect(() => {
+    let active = true;
+    void loadRecoveredCourse().then((recovered) => {
+      if (!active) return;
+      setCourse(recovered);
+      setRecoveryReady(true);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (recoveryReady) void saveRecoveredCourse(course);
+  }, [course, recoveryReady]);
 
   const stageComplete = course.completedStageCount > course.currentStage;
   const continueButton = stageComplete ? (

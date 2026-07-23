@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { packageMetadata, validateCurriculumContent } from './index.ts';
 
 describe('@hanziquest/content-validator', () => {
-  it('reports the Task 1.2 milestone', () => {
-    expect(packageMetadata.status).toBe('task-1.2-content-validation');
+  it('reports the Task 5.1P Pinyin-validation milestone', () => {
+    expect(packageMetadata.status).toBe('task-5.1p-pinyin-validation');
   });
 
   it('accepts the synthetic example curriculum', () => {

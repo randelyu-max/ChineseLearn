@@ -1,767 +1,228 @@
-# HanziQuest — Codex 实施计划
-
-本文件把完整设计拆成适合 Codex 执行、审查和回滚的小任务。每个任务都应在独立分支或 worktree 中完成。不要让 Codex 一次实现整个应用。
-
-## 使用方法
-
-每个任务开始前：
-
-1. 建立 Git 检查点。
-2. 让 Codex 阅读根目录 `AGENTS.md`、完整设计中对应章节和当前代码。
-3. 使用 Plan mode。
-4. 确认范围、非目标、数据流、测试和回滚。
-5. 实现后运行指定验证。
-6. 让 Codex 自审 diff，再人工审查。
-
-通用完成条件：
-
-- lint、typecheck 和相关测试通过。
-- 没有密钥、儿童 PII 或临时绕过。
-- 新 API 有 Zod 合同。
-- 新数据库表有约束、RLS 和测试。
-- 新 AI 路径有验证、审核和静态回退。
-- 文档、ADR 和示例同步更新。
-
----
-
-# 阶段 0：工程基线
-
-## Task 0.1 — 初始化 Monorepo
-
-### 目标
-
-建立 Expo 移动端、Next.js 管理后台、共享包和 Supabase 目录的最小可运行仓库。
-
-### 非目标
-
-- 不实现业务页面。
-- 不接真实后端项目。
-- 不调用 OpenAI。
-
-### 建议提示
-
-```text
-阅读 AGENTS.md 和完整设计第 15、24、27 章。
-进入 Plan mode，不修改文件。
-
-目标：初始化 HanziQuest monorepo：
-- apps/mobile: Expo + TypeScript + Expo Router
-- apps/admin: Next.js + TypeScript
-- packages/contracts
-- packages/learning-engine
-- packages/content-validator
-- packages/design-tokens
-- supabase/migrations, functions, tests
-- pnpm workspace + Turborepo
-
-要求：
-- 固定依赖版本并提交 lockfile；先核对当前稳定 Expo/Node 兼容性。
-- 添加 format、lint、typecheck、test、build 脚本。
-- 添加 .env.example，不放秘密。
-- 添加基础 CI。
-- 每个应用能显示一个最小页面。
-
-先输出文件级计划、版本选择理由、验证命令和回滚方式。
-```
-
-### 验收
-
-- `pnpm install --frozen-lockfile` 成功。
-- `pnpm lint && pnpm typecheck && pnpm test && pnpm build` 成功。
-- 移动端与后台可本地启动。
-- 根目录 README 说明启动方式。
-
-## Task 0.2 — 共享合同与错误模型
-
-### 目标
-
-建立 `packages/contracts`，提供 API 基础响应、错误、ID、时间和版本 Schema。
-
-### 验收
-
-- Zod Schema 与推导类型同源。
-- 包可被 mobile、admin 和 Edge Function 引用。
-- 有有效、无效和向后兼容测试。
-- 统一错误结构已记录。
-
-## Task 0.3 — 设计令牌与基础组件
-
-### 目标
-
-建立颜色语义、间距、圆角、字体、触控尺寸、动效设置和无障碍基础组件。
-
-### 必须组件
-
-- `Screen`
-- `PrimaryButton`
-- `IconButton`
-- `HanziText`
-- `AudioButton`
-- `ProgressBar`
-- `ParentGateTrigger`
-- `LoadingState`
-- `ErrorState`
-
-### 验收
-
-- 触控目标符合规格。
-- 支持减少动态效果。
-- 不仅依靠颜色反馈。
-- Storybook 或移动端组件展示页可检查状态。
-
----
-
-# 阶段 1：课程与静态关卡原型
-
-## Task 1.1 — 课程领域模型
-
-### 目标
-
-在 `packages/curriculum` 或 `contracts` 中定义世界、单元、关卡、活动、字、词、句、故事模型。
-
-### 验收
-
-- 支持简体/繁体字段和稳定 concept ID。
-- 支持内容版本和最低应用版本。
-- 支持先修关系。
-- 示例课程通过 Schema。
-
-## Task 1.2 — 内容验证器
-
-### 目标
-
-实现纯 TypeScript 验证器：引用完整、目标字出现、未知字比例、简繁体一致、句长、题目答案和课程图无环。
-
-### 建议提示
-
-```text
-只实现纯函数内容验证器，不做 UI、不访问数据库、不调用 AI。
-为每个验证错误定义稳定机器码和人类可读说明。
-用 fixtures 覆盖合法内容、缺失引用、混用脚本、答案越界、目标字缺失和先修环。
-```
-
-### 验收
-
-- CLI `pnpm content:validate` 可验证示例内容包。
-- 验证错误可定位到文件、对象 ID 和字段路径。
-- 测试覆盖边界。
-
-## Task 1.3 — 关卡播放器状态机
-
-### 目标
-
-实现与具体题型解耦的关卡状态机：加载、活动中、反馈、提示、暂停、完成、恢复。
-
-### 关键要求
-
-- 注入时钟。
-- 活动完成事件不可变。
-- 后台暂停不计入反应时间。
-- 崩溃后可从本地快照恢复。
-
-### 验收
-
-- 状态转换测试完整。
-- 重复点击不会产生重复完成事件。
-- 退出/恢复测试通过。
-
-## Task 1.4 — 四种 P0 题型
-
-依次单独实现：
-
-1. `audio_to_glyph`
-2. `glyph_to_image`
-3. `word_build`
-4. `sentence_order`
-
-每种题型分别开任务，不合并成一个巨大 PR。
-
-### 每种题型验收
-
-- 正常、错误、提示、重播、无障碍和小屏状态。
-- 产出标准化 attempt 草稿。
-- 触控和键盘/屏幕阅读器替代路径。
-- 无网络依赖。
-
-## Task 1.5 — 静态 20 字演示课程
-
-### 目标
-
-建立“我的家”小型内容包，并让儿童完成一关与一个短故事。
-
-### 验收
-
-- 内容验证通过。
-- 音频和图片有许可/来源字段。
-- 完整流程在真实设备运行。
-- 关卡预计 5–8 分钟。
-
----
-
-# 阶段 2：Supabase、家庭与隐私
-
-## Task 2.1 — 本地 Supabase 与初始迁移
-
-### 目标
-
-把 `supabase_schema.sql` 拆成有序迁移并建立种子。
-
-### 要求
-
-- 不盲目复制；先审查与当前 Supabase/Postgres 兼容性。
-- 每个表有主键、外键、检查约束和必要索引。
-- 私有表默认启用 RLS。
-
-### 验收
-
-- `supabase db reset` 成功。
-- 迁移可从空库重复执行。
-- 种子创建两个家庭用于隔离测试。
-
-## Task 2.2 — 家庭 RLS 测试
-
-### 目标
-
-编写自动测试，验证家庭 A 不能读写家庭 B 的儿童、会话、作答、奖励、报告和同意记录。
-
-### 验收
-
-- 默认拒绝。
-- owner/parent/viewer 权限按设计工作。
-- service role 只在服务端测试环境使用。
-- CI 执行 RLS 测试。
-
-## Task 2.3 — 家长认证与会话
-
-### 目标
-
-移动端实现家长登录、退出、密码恢复和会话恢复。
-
-### 验收
-
-- Token 使用安全存储。
-- 过期会话处理清楚。
-- 儿童关卡离线进行中时，不因 token 过期丢失进度。
-- 技术错误不显示给儿童。
-
-## Task 2.4 — 同意与儿童档案
-
-### 目标
-
-实现同意版本记录、儿童档案创建、年龄段、兴趣枚举、目标时长和 AI/语音开关。
-
-### 验收
-
-- 未同意不能创建档案。
-- 不要求精确生日、学校、儿童邮箱。
-- AI 与语音同意分开。
-- 撤回后功能立即遵守。
-
-## Task 2.5 — 家长门
-
-### 目标
-
-实现购买、设置、隐私和外链前的家长门。
-
-### 验收
-
-- 儿童无法通过简单连续点击绕过。
-- 支持可访问输入。
-- 失败不暴露账户信息。
-- 有自动化 UI 测试。
-
----
-
-# 阶段 3：学习引擎与诊断
-
-## Task 3.1 — 学习状态模型与 BKT
-
-### 目标
-
-实现纯函数 BKT 更新、quality 归一化和状态边界。
-
-### 建议提示
-
-```text
-阅读完整设计第 11 章和 AGENTS.md 的 learning-engine rules。
-只修改 packages/learning-engine 与测试。
-实现：
-- exercise 参数表
-- quality 计算
-- 正确/错误 posterior
-- learn probability 更新
-- mastery clamp
-- 纯函数和不可变输入
-
-使用表驱动测试和属性测试。
-不要访问数据库、Date.now、Math.random 或任何 UI/AI 模块。
-```
-
-### 验收
-
-- 数值测试与手算样例一致。
-- mastery 永不越界。
-- 重复事件由上层幂等阻止，函数本身无副作用。
-
-## Task 3.2 — 稳定度、遗忘和复习时间
-
-### 目标
-
-实现 retention、effective mastery、成功/失误后的稳定度和安全间隔映射。
-
-### 验收
-
-- 注入当前时间。
-- 跨时区测试。
-- 稳定度始终正数。
-- 返回可解释的下次复习原因。
-
-## Task 3.3 — 相似字风险
-
-### 目标
-
-根据作答机会和误选统计计算个人混淆风险，安排专项复习。
-
-### 验收
-
-- A→B 与 B→A 分开统计但共享 pair。
-- 样本不足不误报。
-- 风险下降后减少专项题。
-
-## Task 3.4 — 会话规划器
-
-### 目标
-
-输入能力、课程位置、目标分钟和可用内容，输出满足比例和挫败保护的活动计划。
-
-### 验收
-
-- 新字数量按滚动表现调整。
-- 优先到期复习。
-- 不越过先修。
-- 最多两个连续高难活动。
-- 非空关卡以高成功率活动结束。
-- 固定 seed 下计划可复现。
-
-## Task 3.5 — 诊断规划器
-
-### 目标
-
-实现自适应初测、向上探测和停止规则。
-
-### 验收
-
-- 强、弱、口语强识字弱三类 fixtures 得到合理起点。
-- 连错时停止向上探测。
-- 时长上限受控。
-- 儿童端不显示负面等级。
-
----
-
-# 阶段 4：事件处理、同步与奖励
-
-## Task 4.1 — `session-plan` Edge Function
-
-### 目标
-
-验证授权，调用纯学习引擎，保存不可变计划快照，并按 `clientSessionId` 幂等返回。
-
-### 验收
-
-- 未授权儿童返回 403。
-- 相同 client ID 返回同一 session。
-- 不调用 AI。
-- 集成测试使用本地 Supabase。
-
-## Task 4.2 — 本地 SQLite 与 Outbox
-
-### 目标
-
-建立课程缓存、会话快照、attempt outbox 和 sync cursor。
-
-### 验收
-
-- App 重启后事件仍存在。
-- 已确认事件才删除。
-- 数据库迁移兼容旧本地版本。
-- 飞行模式测试通过。
-
-## Task 4.3 — `attempts-batch` Edge Function
-
-### 目标
-
-服务端重新判题、幂等写 attempts、更新能力和混淆统计。
-
-### 关键要求
-
-- 一批事务处理。
-- 不信任客户端正确性。
-- 重复 attempt 不重复更新。
-- 事件与计划活动一致。
-
-### 验收
-
-- success/invalid/duplicate/out-of-order 测试。
-- 并发提交不破坏状态版本。
-- 日志无回答原文之外的不必要儿童数据。
-
-## Task 4.4 — 奖励账本
-
-### 目标
-
-实现不可变 reward transaction、库存和一次性关卡完成奖励。
-
-### 验收
-
-- 同一 completion ID 只发一次。
-- 客户端不能直接增加余额。
-- 余额不足购买失败且不产生负数。
-- reversal 有审计链。
-
-## Task 4.5 — `session-complete`
-
-### 目标
-
-完成会话、计算摘要、发奖和返回世界进度。
-
-### 验收
-
-- 必需活动不足不能完成。
-- 重试幂等。
-- 离线完成后同步可确认奖励。
-- 关卡结束文案包含真实学习事实。
-
-## Task 4.6 — 多设备 Pull Sync
-
-### 目标
-
-使用服务端单调游标同步能力、奖励、世界布局和内容清单。
-
-### 验收
-
-- 不依赖客户端时间作为唯一排序。
-- 离线乱序 events 仍正确。
-- 冲突有明确规则和测试。
-
----
-
-# 阶段 5：完整儿童体验
-
-## Task 5.1 — 世界地图与今日任务
-
-### 目标
-
-显示当前世界、唯一主任务、预计时长和每周节奏。
-
-### 验收
-
-- 今日完成状态明确结束。
-- 锁定区域不向儿童显示价格。
-- 离线状态可理解。
-
-## Task 5.2 — 剩余 P0 题型
-
-分别实现：
-
-- `glyph_to_sound_choice`
-- `sentence_comprehension`
-- `confusion_discrimination`
-- `tap_to_read_sentence`
-
-## Task 5.3 — 故事阅读器
-
-### 目标
-
-静态故事逐句阅读、点字提示、理解题、收藏和离线。
-
-### 验收
-
-- 提示来源于课程数据库。
-- 无未知引用。
-- 理解题答案服务端/内容确定。
-- 进度可恢复。
-
-## Task 5.4 — 建设世界
-
-### 目标
-
-实现金币购买免费游戏内物品、布局、宠物互动和低压力汉字复习。
-
-### 验收
-
-- 不存在真钱入口在儿童区。
-- 点击物品可播放对应词句。
-- 每日目标后建设区不无限产出货币。
-
-## Task 5.5 — 周目标与宽容连续机制
-
-### 目标
-
-每周 N 天、休息卡或节奏显示，不采用一次断签全部清零。
-
-### 验收
-
-- 时区和夏令时测试。
-- 家长可关闭。
-- 不使用责备性文案。
-
----
-
-# 阶段 6：家长仪表板与隐私操作
-
-## Task 6.1 — 确定性周报查询
-
-### 目标
-
-用 SQL/RPC 计算学习天数、分钟、稳定掌握、新故事、提示率和混淆项。
-
-### 验收
-
-- 数字可用 fixtures 手工复核。
-- 时间窗口按家庭时区。
-- 没有 AI 时周报完整。
-
-## Task 6.2 — 家长仪表板 UI
-
-### 验收
-
-- 五个核心信息首屏可见。
-- 图表有文字结论。
-- 不比较其他儿童。
-- 多儿童切换不串数据。
-
-## Task 6.3 — 数据导出与删除
-
-### 目标
-
-实现近期认证、请求记录、导出包和删除状态机。
-
-### 验收
-
-- 未授权或旧会话不能发起。
-- 删除后儿童不能继续访问。
-- 保留/匿名化策略有文档和测试。
-- 支持运营审计但不保留不必要内容。
-
----
-
-# 阶段 7：受约束 AI
-
-## Task 7.1 — AI 合同与验证器
-
-### 目标
-
-把 `AI_CONTENT_CONTRACTS.ts` 集成共享包，实现字表、句长、答案唯一、脚本和安全规则验证。
-
-### 验收
-
-- 纯函数，无网络。
-- 失败返回机器码和可修复上下文。
-- 对抗 fixtures 覆盖。
-
-## Task 7.2 — OpenAI 服务适配层
-
-### 目标
-
-服务端封装 Responses API、Structured Outputs、超时、配置别名、usage 和 store/retention 选项。
-
-### 非目标
-
-- 不生成儿童可见内容。
-- 不启用语音。
-
-### 验收
-
-- API key 仅服务端。
-- CI 使用 mock。
-- provider 可替换。
-- 不把 child ID/昵称发送给 provider。
-
-## Task 7.3 — `story-generate` 安全管线
-
-### 目标
-
-实现约束构建 → 去标识 → 输入审核 → 生成 → 验证 → 输出审核 → 缓存 → 发布。
-
-### 验收
-
-- 任一阶段失败使用静态故事。
-- 最多一次修复重试。
-- 未验证输出不可查询为 published。
-- 保存版本和验证报告。
-
-## Task 7.4 — AI 故事预生成体验
-
-### 目标
-
-在关卡前后台预生成，不让儿童阻塞等待。
-
-### 验收
-
-- 网络慢/无 AI 时体验一致。
-- 家长关闭 AI 后不发新请求。
-- AI 故事有清楚来源标记给家长。
-
-## Task 7.5 — 家长周报语言生成
-
-### 目标
-
-仅传聚合事实，生成简短双语文案；使用模板回退。
-
-### 验收
-
-- 不做诊断或同龄比较。
-- 不发送 child ID/昵称。
-- 数字由确定性数据提供，模型不能修改。
-
-## Task 7.6 — 语音可行性原型（默认不发布）
-
-### 目标
-
-在隔离分支评估设备端转写或合规云端方案，比较字级对齐、口音误判和隐私。
-
-### 发布前必需
-
-- 数据保护影响评估。
-- 家长独立同意。
-- 当前供应商未成年人和保留要求核查。
-- 原始音频删除验证。
-- 低置信度不判错。
-- 功能开关默认关闭。
-
----
-
-# 阶段 8：内容后台与课程扩展
-
-## Task 8.1 — 内容 CRUD 与状态机
-
-### 验收
-
-- 草稿、审核、批准、发布、归档。
-- 权限分离。
-- 变更审计。
-- 发布内容不可原地修改，必须新版本。
-
-## Task 8.2 — 资源上传与许可元数据
-
-### 验收
-
-- MIME/大小/哈希验证。
-- 图片元数据清理。
-- 保存许可来源。
-- 未批准资源不能进入发布清单。
-
-## Task 8.3 — 课程图编辑与预览
-
-### 验收
-
-- 可视化世界/单元/关卡。
-- 自动检查先修环和未知字比例。
-- 能以不同儿童能力预览计划。
-
-## Task 8.4 — 120 字 MVP 内容导入
-
-### 验收
-
-- 4 个世界。
-- 每个目标字有音义、词语、句子、混淆和至少两种练习证据。
-- 20 个故事。
-- 全部自动 QA 和教学抽检通过。
-
----
-
-# 阶段 9：发布准备
-
-## Task 9.1 — 性能与离线压力测试
-
-- 低端 Android。
-- 课程包冷启动。
-- 1000 个待同步事件。
-- 网络抖动和重复响应。
-- 大量能力状态查询。
-
-## Task 9.2 — 无障碍审计
-
-- Screen reader。
-- 字体缩放。
-- 减少动态。
-- 点击替代拖拽。
-- 音频/视觉替代。
-
-## Task 9.3 — 隐私与商店检查
-
-- Apple Kids Category 决策。
-- Google Play Families 声明。
-- 第三方 SDK 清单。
-- 数据安全表单。
-- 家长门。
-- 隐私政策与同意版本。
-- 删除/导出。
-
-## Task 9.4 — 生产可观测性与事件响应
-
-- 脱敏日志。
-- 关键告警。
-- AI 内容下架。
-- 课程回滚。
-- RLS/授权异常告警。
-- 数据请求运营队列。
-
-## Task 9.5 — 最终发布候选验证
-
-运行：
-
-```bash
-pnpm format:check
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:integration
-pnpm test:e2e
-pnpm content:validate
-pnpm build
-```
-
-并完成完整设计第 23.5 节和第 30 章清单。
-
----
-
-# Codex 代码审查提示
-
-每个 PR 完成后，可使用：
-
-```text
-请以严格审查者身份检查当前 diff，不要先修改代码。
-阅读 AGENTS.md 和本任务对应设计章节。
-
-重点检查：
-1. 儿童隐私或第三方数据流；
-2. RLS、授权和服务端密钥；
-3. 幂等、离线重试和并发；
-4. 学习算法不变量；
-5. AI 输出是否可能绕过验证；
-6. 奖励是否可由客户端伪造；
-7. 测试是否覆盖失败、重复和无网；
-8. 无障碍与儿童端暗黑模式。
-
-按严重度列出问题，给出文件和行范围、复现方式和最小修复建议。
-没有证据的问题不要猜测。
-```
-
-# Codex 故障修复提示
-
-```text
-先复现问题并写一个会失败的测试，不要直接猜修复。
-说明根因、受影响范围和为什么现有测试没发现。
-做最小修复，运行相关测试和完整回归。
-不要顺带重构无关代码。
-```
-
-# 依赖升级提示
-
-```text
-这是一次受控依赖升级。先阅读 changelog 和官方迁移文档，列出破坏性变化。
-分里程碑升级，每一步运行 lint、typecheck、单测、构建和关键 E2E。
-保持行为不变，除非任务明确要求用户可见变化。
-保留可回滚检查点，不一次升级多个无关 major 版本。
-```
+# HanziQuest V1 Codex implementation plan
+
+Status: Task 5.1P Pinyin domain and validation implemented after 3.6R; 3.7R is next.
+Execute one task at a time; stop after its acceptance checks and review.
+
+## Superseded work
+
+The original family RLS, parent authentication, consent/child profile, parent gate, parent
+dashboard/report, Child Profile, Household, Parent/Guardian roles, AI story/prompt/moderation,
+AI parent report, AI speech, Premium AI, and AI entitlement tasks are **SUPERSEDED** and must not
+be resumed. Original Task 3.5 is **SUPERSEDED by Task 3.5R**.
+
+Task 3.1 BKT, 3.2 memory stability, 3.3 confusion risk, and 3.4 session planning remain accepted
+age-neutral learning algorithms. Their persistence adapters are not accepted because the current
+database still uses `child_id`.
+
+## Required order
+
+P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
+5.1P (complete) → 3.7R → 4.1R → 4.2R → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
+
+## Task cards
+
+### P0 — Product pivot audit and documentation baseline
+
+- **目标：** Freeze Task 3.4, audit old domains, and establish this V1 design/ADR/plan.
+- **非目标：** No runtime, route, database, Pinyin UI, canvas, or AI cleanup.
+- **依赖：** Verified Task 3.4 checkpoint.
+- **文件范围：** `AGENTS.md`, `docs/**`, canonical-plan pointers only.
+- **数据变化：** None.
+- **安全和隐私：** Document cross-user isolation and local raw strokes.
+- **测试要求：** Format, lint, typecheck, learning-engine/content-validator tests, diff check.
+- **验收标准：** Audit A–D, new ADR/design/plan, P1 checklist, real command results.
+- **回滚方式：** Revert the P0 documentation commit; Task 3.4 checkpoint remains.
+
+### P1 — Remove V1 AI code and configuration
+
+- **状态：** Complete on 2026-07-23; do not extend this card into 2.2R.
+- **目标：** Execute every item in `docs/audits/P0_V1_PIVOT_AUDIT.md`.
+- **非目标：** No single-user schema or future AI implementation.
+- **依赖：** P0.
+- **文件范围：** AI contracts, backend config/schema planning, tests, lockfile if needed.
+- **数据变化：** Remove AI-only types/tables from the proposed clean V1 baseline; document deployed-history choice.
+- **安全和隐私：** No provider secrets, prompts, payloads, moderation, flags, usage, quota, or entitlement.
+- **测试要求：** Repository forbidden-term check plus full validation.
+- **验收标准：** Runtime/config contains no V1 AI surface; only future backlog note remains.
+- **回滚方式：** Revert P1 commit; do not restore provider secrets.
+
+### 2.2R — Single-user database model and RLS
+
+- **状态：** Implemented on 2026-07-23 with a guarded forward migration.
+- **目标：** Build one-to-one profiles and `user_id` private tables.
+- **非目标：** No Household/Child migration compatibility layer.
+- **依赖：** P1 and explicit clean-baseline/data-mapping decision.
+- **文件范围：** `database/migrations`, database tests, schema documentation.
+- **数据变化：** Profiles, sessions, attempts, skill/review/confusion, signature metadata/summary.
+- **安全和隐私：** Default-deny RLS; raw strokes/images absent; cross-user denial.
+- **测试要求：** Reset, constraints, grants, RLS denial, indexes, rollback rehearsal.
+- **验收标准：** Every private row is isolated by the authenticated API user; forbidden IDs absent.
+- **回滚方式：** Restore pre-2.2R database snapshot or revert clean baseline before data import.
+
+### 2.3R — Single-user authentication and session
+
+- **状态：** Implemented on 2026-07-23; do not begin 3.5R.
+- **目标：** Rename and retain generic login/logout/recovery/secure session behavior.
+- **非目标：** No profile onboarding, roles, learner switching, or parent gate.
+- **依赖：** 2.2R.
+- **文件范围：** Mobile auth feature/routes, Better Auth Expo client, tests.
+- **数据变化：** Read only the authenticated user's profile.
+- **安全和隐私：** SecureStore tokens; safe redirects; no token logging.
+- **测试要求：** Login, logout, recovery, callback, restore, expiry, unauthenticated denial.
+- **验收标准：** Neutral AuthProvider works without Parent/Child concepts.
+- **回滚方式：** Revert rename atomically with route imports.
+
+### 2.4R — Profile, first-run setup, and main navigation
+
+- **状态：** Implemented on 2026-07-23; do not begin 3.5R.
+- **目标：** Create one profile and Learning/Pinyin/Writing/Review/Me navigation.
+- **非目标：** No diagnostic implementation or signature canvas.
+- **依赖：** 2.3R.
+- **文件范围：** Profile feature, onboarding routes, navigation, copy, tests.
+- **数据变化：** Approved profile fields only.
+- **安全和隐私：** Chinese name optional; no real-name or household collection.
+- **测试要求：** Create/resume/update profile, duplicate prevention, accessibility, navigation.
+- **验收标准：** One auth user cannot create or switch multiple profiles.
+- **回滚方式：** Revert UI/profile RPC together; preserve auth session.
+
+### 3.1–3.4 — Retained learning-engine baseline
+
+- **目标：** Preserve BKT, memory, confusion, and deterministic session planning.
+- **非目标：** No child-specific persistence adapter.
+- **依赖：** Existing checkpoint `96d2df9`.
+- **文件范围：** `packages/learning-engine`.
+- **数据变化：** None; pure functions.
+- **安全和隐私：** No network/database/AI/PII.
+- **测试要求：** Existing unit/invariant/seed tests remain green.
+- **验收标准：** Algorithm versions and documented invariants remain stable.
+- **回滚方式：** Revert only a versioned algorithm change and its tests.
+
+### 3.5R — Pinyin and Hanzi multidimensional diagnostic
+
+- **状态：** Implemented on 2026-07-23 as `diagnostic-v1`; do not begin 3.6R.
+- **目标：** Estimate spoken audio, Pinyin recognition, tone discrimination, Hanzi recognition,
+  word reading, and sentence reading with confidence.
+- **非目标：** No signature assessment, network, AI, or negative user label.
+- **依赖：** 3.1–3.4 and Pinyin domain draft.
+- **文件范围：** Learning-engine diagnostic module, fixtures, tests.
+- **数据变化：** Pure result contract only; persistence later.
+- **安全和隐私：** Audio-first, no English dependency or personal data.
+- **测试要求：** Five user fixtures, consecutive-error stop, item/time cap, fixed seed.
+- **验收标准：** Reasonable per-axis starts/confidence for all fixtures; reproducible output.
+- **回滚方式：** Remove diagnostic export/module without changing retained algorithms.
+
+### 3.6R — Pinyin-support evidence weighting
+
+- **状态：** Implemented on 2026-07-23 as `pinyin-evidence-v1`; do not begin 3.7R.
+- **目标：** Reduce independent Hanzi evidence after Pinyin hints deterministically.
+- **非目标：** Do not mark a correct answer incorrect.
+- **依赖：** 3.5R.
+- **文件范围：** Learning quality/evidence module and tests.
+- **数据变化：** Add support/evidence metadata contract.
+- **安全和隐私：** Pure local calculation.
+- **测试要求：** Hint levels, bounds, mastery invariants, no-hint compatibility.
+- **验收标准：** Pinyin-hinted correct evidence is strictly lower than unhinted evidence.
+- **回滚方式：** Revert versioned weighting and metadata together.
+
+### 3.7R — Integrate Pinyin into session planning
+
+- **目标：** Add Pinyin review/new/transfer candidates and adaptive support fading.
+- **非目标：** No UI or database function.
+- **依赖：** 3.6R and 5.1P schema contract.
+- **文件范围：** Session planner adapters/tests.
+- **数据变化：** None.
+- **安全和隐私：** Deterministic seed and prerequisite protection.
+- **测试要求：** Ratio, due priority, fade, frustration guards, reproducibility.
+- **验收标准：** Pinyin and Hanzi plans obey Task 3.4 invariants.
+- **回滚方式：** Remove Pinyin adapter; retain core planner.
+
+### 4.1R — Single-user `session-plan`
+
+- **目标：** Authorize user, call planner, persist immutable idempotent plan.
+- **非目标：** No attempt mutation or AI.
+- **依赖：** 2.2R, 3.7R.
+- **文件范围：** Node API route, contracts, integration tests.
+- **数据变化：** Insert `learning_sessions.user_id`.
+- **安全和隐私：** Derive user from JWT; ignore client ownership fields.
+- **测试要求：** Auth denial, invalid input, duplicate client ID, retry, RLS.
+- **验收标准：** Same idempotency key returns same snapshot.
+- **回滚方式：** Undeploy API route and revert additive migration.
+
+### 4.2R — Local cache and Outbox
+
+- **目标：** Persist content, active session, attempts, and sync queue offline.
+- **非目标：** No server attempt processing.
+- **依赖：** 4.1R.
+- **文件范围：** Mobile storage/outbox adapters and recovery UI.
+- **数据变化：** Local-only versioned tables; no raw signature trajectory here.
+- **安全和隐私：** Minimize cached profile data and redact logs.
+- **测试要求：** Restart recovery, duplicate queue, corruption, migration, offline UX.
+- **验收标准：** Process death does not lose completed attempts.
+- **回滚方式：** Local schema migration with export/clear fallback.
+
+### 4.3R — Single-user `attempts-batch`
+
+- **目标：** Validate answers and apply idempotent authoritative learning updates.
+- **非目标：** No client mastery writes or rewards redesign.
+- **依赖：** 4.2R, 3.6R.
+- **文件范围：** Contracts, Node API route, transaction/RLS tests.
+- **数据变化：** Attempts, skill states, reviews, confusion keyed by user.
+- **安全和隐私：** JWT-derived user; server answer check; bounded batch.
+- **测试要求：** Duplicate, out-of-order, concurrency, invalid answer, cross-user denial.
+- **验收标准：** One event changes state at most once.
+- **回滚方式：** Stop function; immutable attempts support replay with prior algorithm.
+
+## Pinyin task series
+
+Each Pinyin task uses static reviewed content, no AI/network at exercise time, age-neutral copy,
+and focused unit/accessibility tests. Rollback removes the task's additive schema/export/UI while
+preserving previous Pinyin tasks.
+
+| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 |
+|---|---|---|---|---|---|---|
+| 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI | 3.5R contract | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture |
+| 5.2P | `audio_to_pinyin` | No speech upload | 5.1P | mobile feature/tests | Attempts only later | Replay, distractors, offline, accessibility; answer deterministic |
+| 5.3P | `pinyin_to_audio` | No pronunciation scoring | 5.2P | mobile feature/tests | None | Audio preload/replay/error; correct clip stable |
+| 5.4P | `pinyin_to_glyph` | No translation dependency | 5.1P | mobile feature/tests | None | Tone variants and ambiguity; target mapping correct |
+| 5.5P | `glyph_to_pinyin` | No always-on ruby text | 5.1P | mobile feature/tests | None | Polyphone context and hints; accepted reading explicit |
+| 5.6P | `tone_choice` | No dialect judgment | 5.1P | mobile feature/tests | None | Tone/neutral-tone table tests; no shaming copy |
+| 5.7P | `pinyin_syllable_build` | No free text IME | 5.1P | mobile feature/tests | None | Tap alternative, legal order, diacritics; accessible completion |
+| 5.8P | Adaptive Pinyin display and fading | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests | Support preference/state | Fade/re-enable/interruption tests; evidence and UI agree |
+
+## Writing task series
+
+All writing tasks operate only on the user's own Chinese name, normalize coordinates, keep raw
+strokes local by default, never authenticate/verify identity, never imitate a real person, and
+never call AI. Each task needs unit, local persistence, accessibility, and privacy assertions.
+
+| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 | 回滚 |
+|---|---|---|---|---|---|---|---|
+| 6.1W | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload | 2.4R | mobile writing/storage | Local strokes | Resize/replay/undo/performance; same normalized trace | Remove route/local table |
+| 6.2W | Standard stroke order, tracing to free writing | No signature style | 6.1W | curriculum/mobile | Static stroke assets | Start/direction/structure/ratio; offline tracing | Remove lesson layer/assets |
+| 6.3W | Deterministic clear/compact/leaning/flowing styles | No AI or celebrity imitation | 6.2W | pure transform module/UI | Selected style metadata | Fixed input reproducibility/bounds; own-name only | Remove transforms/style field |
+| 6.4W | Local save and self-consistency feedback | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API | Server metadata/count/summary only | Assert no raw points/image payload; repeatability feedback | Disable sync, retain local export |
+
+## Humor task series
+
+Humor is static editorial curriculum with `off | light | playful` preference (`light` default),
+neutral fallback, no AI/network, no humiliation, identity stereotypes, false etymology, or changed
+answers.
+
+| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 | 回滚 |
+|---|---|---|---|---|---|---|---|
+| 7.1H | Humor schema and validator for six approved types | No content generation | 5.1P | curriculum/validator | Content metadata | Same target/answer, fallback, safety checks | Remove additive fields/rules |
+| 7.2H | Profile humor preference | No personalization profiling | 7.1H, 2.4R | profile/mobile | `humor_preference` | Default/update/offline selection; `off` always neutral | Default to off/remove control |
+| 7.3H | Human-authored reviewed humor content | No AI rewrite | 7.2H | curriculum/assets | Static content versions | Editorial status, locales, targets, fallbacks | Unpublish humor variants |
+
+### 8.0 — Full V1 regression and release preparation
+
+- **目标：** Validate complete single-user V1 for release.
+- **非目标：** No new features, AI, payment, or speculative architecture.
+- **依赖：** All accepted tasks above.
+- **文件范围：** Entire repository, release docs, CI, store metadata.
+- **数据变化：** Release migration rehearsal and backups only.
+- **安全和隐私：** Forbidden-domain scan, RLS audit, local-stroke audit, secret scan.
+- **测试要求：** Full unit/integration/E2E, offline stress, performance, accessibility, privacy,
+  content, migration/rollback, supported devices.
+- **验收标准：** No Parent/Child/Household/AI runtime surface; all release gates documented green.
+- **回滚方式：** Do not promote candidate; restore previous deployment/database snapshot.

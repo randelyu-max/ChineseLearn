@@ -21,6 +21,7 @@
     "validate:content": "node --experimental-strip-types src/cli.ts"
   },
   "dependencies": {
+    "@hanziquest/contracts": "workspace:*",
     "@hanziquest/curriculum": "workspace:*"
   },
   "devDependencies": {

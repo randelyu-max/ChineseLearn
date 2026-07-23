@@ -16,7 +16,6 @@ import {
   HanziText,
   IconButton,
   LoadingState,
-  ParentGateTrigger,
   PrimaryButton,
   ProgressBar,
   Screen,
@@ -59,7 +58,6 @@ export default function ComponentShowcaseScreen() {
           />
           <AudioButton onPress={() => undefined} />
         </View>
-        <ParentGateTrigger onPress={() => undefined} />
       </ShowcaseSection>
 
       <ShowcaseSection title="汉字层级">
