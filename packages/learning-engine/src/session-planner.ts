@@ -1,4 +1,4 @@
-export const SESSION_PLANNER_ALGORITHM_VERSION = 'session-planner-v1' as const;
+export const SESSION_PLANNER_ALGORITHM_VERSION = 'session-planner-v2' as const;
 
 export const sessionCategoryTargets = Object.freeze({
   focusReview: 0.2,
@@ -15,6 +15,8 @@ export type SessionCandidateCategory =
   | 'transfer_reading'
   | 'quick_success';
 
+export type LearningDomain = 'hanzi' | 'pinyin';
+
 export type RecentPerformance = Readonly<{
   accuracy: number;
   fullHintRate: number;
@@ -29,6 +31,7 @@ export type SessionCandidate = Readonly<{
   difficulty: number;
   estimatedSeconds: number;
   id: string;
+  learningDomain: LearningDomain;
   prerequisiteConceptIds: readonly string[];
   scores: Readonly<{
     confusion: number;
@@ -43,10 +46,11 @@ export type SessionCandidate = Readonly<{
 }>;
 
 export type SessionPlannerInput = Readonly<{
+  abilityEstimate: number;
   candidates: readonly SessionCandidate[];
-  childAbility: number;
   eligibleCurriculumNodeIds: readonly string[];
   masteredConceptIds: readonly string[];
+  pinyinTargetRatio?: number;
   recentPerformance: RecentPerformance;
   seed: string;
   targetMinutes: number;
@@ -57,6 +61,7 @@ export type PlannedSessionActivity = Readonly<{
   category: SessionCandidateCategory;
   estimatedSeconds: number;
   isHighDifficulty: boolean;
+  learningDomain: LearningDomain;
   predictedSuccess: number;
   priority: number;
   targetConceptIds: readonly string[];
@@ -125,13 +130,13 @@ export function calculateNewConceptLimit(performance: RecentPerformance): number
 }
 
 export function calculatePredictedSuccess(input: {
-  childAbility: number;
+  abilityEstimate: number;
   confusionPenalty: number;
   difficulty: number;
   supportBoost: number;
 }): number {
   const logit =
-    (normalizedUnit(input.childAbility) -
+    (normalizedUnit(input.abilityEstimate) -
       normalizedUnit(input.difficulty) +
       normalizedUnit(input.supportBoost) -
       normalizedUnit(input.confusionPenalty)) *
@@ -201,7 +206,7 @@ function scoreCandidates(
   return eligible
     .map((candidate) => {
       const predictedSuccess = calculatePredictedSuccess({
-        childAbility: input.childAbility,
+        abilityEstimate: input.abilityEstimate,
         confusionPenalty: candidate.confusionPenalty,
         difficulty: candidate.difficulty,
         supportBoost: candidate.supportBoost,
@@ -259,6 +264,7 @@ function plannedActivity(item: ScoredCandidate): PlannedSessionActivity {
     category: item.candidate.category,
     estimatedSeconds: normalizedSeconds(item.candidate.estimatedSeconds),
     isHighDifficulty: item.isHighDifficulty,
+    learningDomain: item.candidate.learningDomain,
     predictedSuccess: item.predictedSuccess,
     priority: item.priority,
     targetConceptIds: Object.freeze([...item.candidate.targetConceptIds]),
@@ -302,6 +308,10 @@ export function buildSessionPlan(input: SessionPlannerInput): SessionPlan {
   }
 
   const remainingSlots = Math.max(0, activityBudget - 1);
+  const targetPinyinActivities = Math.min(
+    activityBudget,
+    Math.round(activityBudget * normalizedUnit(input.pinyinTargetRatio ?? 0)),
+  );
   const desired = {
     focus: Math.round(remainingSlots * sessionCategoryTargets.focusReview),
     new: Math.min(newConceptLimit, Math.round(remainingSlots * sessionCategoryTargets.newContent)),
@@ -312,6 +322,7 @@ export function buildSessionPlan(input: SessionPlannerInput): SessionPlan {
   const selectedIds = new Set([closingCandidate.candidate.id]);
   const newConceptIds = new Set<string>();
   let selectedSeconds = normalizedSeconds(closingCandidate.candidate.estimatedSeconds);
+  let selectedPinyinActivities = closingCandidate.candidate.learningDomain === 'pinyin' ? 1 : 0;
 
   function canSelect(item: ScoredCandidate): boolean {
     if (selectedIds.has(item.candidate.id)) {
@@ -343,17 +354,23 @@ export function buildSessionPlan(input: SessionPlannerInput): SessionPlan {
         }
       }
     }
+    if (item.candidate.learningDomain === 'pinyin') {
+      selectedPinyinActivities += 1;
+    }
   }
 
   function take(pool: readonly ScoredCandidate[], count: number): void {
-    for (const item of pool) {
-      if (selected.length >= remainingSlots || count <= 0) {
-        return;
-      }
-      if (canSelect(item)) {
-        select(item);
-        count -= 1;
-      }
+    while (selected.length < remainingSlots && count > 0) {
+      const preferredDomain: LearningDomain =
+        selectedPinyinActivities < targetPinyinActivities ? 'pinyin' : 'hanzi';
+      const item =
+        pool.find(
+          (candidate) =>
+            candidate.candidate.learningDomain === preferredDomain && canSelect(candidate),
+        ) ?? pool.find(canSelect);
+      if (!item) return;
+      select(item);
+      count -= 1;
     }
   }
 

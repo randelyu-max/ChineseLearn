@@ -104,6 +104,6 @@ rewrite unrelated files.
 ## Completion report
 
 Report changed files, actual commands and results, privacy/security/learning implications,
-remaining risks, and rollback instructions. Task 5.1P established the versioned Pinyin content
-contract, deterministic normalization, and content validation after Task 3.6R. The next eligible
-task is 3.7R; do not begin it or any later task without a new explicit request.
+remaining risks, and rollback instructions. Task 4.1R established the authenticated, immutable,
+idempotent single-user session-plan API on top of the Task 3.7R Pinyin/Hanzi planner. The next
+eligible task is 4.2R; do not begin it or any later task without a new explicit request.

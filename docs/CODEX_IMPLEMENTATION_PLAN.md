@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 5.1P Pinyin domain and validation implemented after 3.6R; 3.7R is next.
+Status: Task 4.1R single-user session-plan API implemented; 4.2R is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -17,7 +17,7 @@ database still uses `child_id`.
 ## Required order
 
 P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
-5.1P (complete) → 3.7R → 4.1R → 4.2R → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
+5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
 
 ## Task cards
 
@@ -113,7 +113,7 @@ P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R
 
 ### 3.6R — Pinyin-support evidence weighting
 
-- **状态：** Implemented on 2026-07-23 as `pinyin-evidence-v1`; do not begin 3.7R.
+- **状态：** Implemented on 2026-07-23 as `pinyin-evidence-v1`.
 - **目标：** Reduce independent Hanzi evidence after Pinyin hints deterministically.
 - **非目标：** Do not mark a correct answer incorrect.
 - **依赖：** 3.5R.
@@ -126,6 +126,8 @@ P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R
 
 ### 3.7R — Integrate Pinyin into session planning
 
+- **状态：** Implemented on 2026-07-23 as `session-planner-v2` and
+  `pinyin-session-planner-v1`.
 - **目标：** Add Pinyin review/new/transfer candidates and adaptive support fading.
 - **非目标：** No UI or database function.
 - **依赖：** 3.6R and 5.1P schema contract.
@@ -138,6 +140,7 @@ P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R
 
 ### 4.1R — Single-user `session-plan`
 
+- **状态：** Implemented on 2026-07-23; do not begin 4.2R in the same task.
 - **目标：** Authorize user, call planner, persist immutable idempotent plan.
 - **非目标：** No attempt mutation or AI.
 - **依赖：** 2.2R, 3.7R.
@@ -178,16 +181,16 @@ Each Pinyin task uses static reviewed content, no AI/network at exercise time, a
 and focused unit/accessibility tests. Rollback removes the task's additive schema/export/UI while
 preserving previous Pinyin tasks.
 
-| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 |
-|---|---|---|---|---|---|---|
-| 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI | 3.5R contract | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture |
-| 5.2P | `audio_to_pinyin` | No speech upload | 5.1P | mobile feature/tests | Attempts only later | Replay, distractors, offline, accessibility; answer deterministic |
-| 5.3P | `pinyin_to_audio` | No pronunciation scoring | 5.2P | mobile feature/tests | None | Audio preload/replay/error; correct clip stable |
-| 5.4P | `pinyin_to_glyph` | No translation dependency | 5.1P | mobile feature/tests | None | Tone variants and ambiguity; target mapping correct |
-| 5.5P | `glyph_to_pinyin` | No always-on ruby text | 5.1P | mobile feature/tests | None | Polyphone context and hints; accepted reading explicit |
-| 5.6P | `tone_choice` | No dialect judgment | 5.1P | mobile feature/tests | None | Tone/neutral-tone table tests; no shaming copy |
-| 5.7P | `pinyin_syllable_build` | No free text IME | 5.1P | mobile feature/tests | None | Tap alternative, legal order, diacritics; accessible completion |
-| 5.8P | Adaptive Pinyin display and fading | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests | Support preference/state | Fade/re-enable/interruption tests; evidence and UI agree |
+| Task            | 目标                                                         | 非目标                     | 依赖                | 文件范围                       | 数据变化                 | 测试要求与验收                                                                                                                          |
+| --------------- | ------------------------------------------------------------ | -------------------------- | ------------------- | ------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI                      | 3.5R contract       | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture |
+| 5.2P            | `audio_to_pinyin`                                            | No speech upload           | 5.1P                | mobile feature/tests           | Attempts only later      | Replay, distractors, offline, accessibility; answer deterministic                                                                       |
+| 5.3P            | `pinyin_to_audio`                                            | No pronunciation scoring   | 5.2P                | mobile feature/tests           | None                     | Audio preload/replay/error; correct clip stable                                                                                         |
+| 5.4P            | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Tone variants and ambiguity; target mapping correct                                                                                     |
+| 5.5P            | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Polyphone context and hints; accepted reading explicit                                                                                  |
+| 5.6P            | `tone_choice`                                                | No dialect judgment        | 5.1P                | mobile feature/tests           | None                     | Tone/neutral-tone table tests; no shaming copy                                                                                          |
+| 5.7P            | `pinyin_syllable_build`                                      | No free text IME           | 5.1P                | mobile feature/tests           | None                     | Tap alternative, legal order, diacritics; accessible completion                                                                         |
+| 5.8P            | Adaptive Pinyin display and fading                           | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests            | Support preference/state | Fade/re-enable/interruption tests; evidence and UI agree                                                                                |
 
 ## Writing task series
 
@@ -195,12 +198,12 @@ All writing tasks operate only on the user's own Chinese name, normalize coordin
 strokes local by default, never authenticate/verify identity, never imitate a real person, and
 never call AI. Each task needs unit, local persistence, accessibility, and privacy assertions.
 
-| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 | 回滚 |
-|---|---|---|---|---|---|---|---|
-| 6.1W | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload | 2.4R | mobile writing/storage | Local strokes | Resize/replay/undo/performance; same normalized trace | Remove route/local table |
-| 6.2W | Standard stroke order, tracing to free writing | No signature style | 6.1W | curriculum/mobile | Static stroke assets | Start/direction/structure/ratio; offline tracing | Remove lesson layer/assets |
-| 6.3W | Deterministic clear/compact/leaning/flowing styles | No AI or celebrity imitation | 6.2W | pure transform module/UI | Selected style metadata | Fixed input reproducibility/bounds; own-name only | Remove transforms/style field |
-| 6.4W | Local save and self-consistency feedback | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API | Server metadata/count/summary only | Assert no raw points/image payload; repeatability feedback | Disable sync, retain local export |
+| Task | 目标                                                | 非目标                                   | 依赖       | 文件范围                 | 数据变化                           | 测试要求与验收                                             | 回滚                              |
+| ---- | --------------------------------------------------- | ---------------------------------------- | ---------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------- | --------------------------------- |
+| 6.1W | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload                        | 2.4R       | mobile writing/storage   | Local strokes                      | Resize/replay/undo/performance; same normalized trace      | Remove route/local table          |
+| 6.2W | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Start/direction/structure/ratio; offline tracing           | Remove lesson layer/assets        |
+| 6.3W | Deterministic clear/compact/leaning/flowing styles  | No AI or celebrity imitation             | 6.2W       | pure transform module/UI | Selected style metadata            | Fixed input reproducibility/bounds; own-name only          | Remove transforms/style field     |
+| 6.4W | Local save and self-consistency feedback            | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API  | Server metadata/count/summary only | Assert no raw points/image payload; repeatability feedback | Disable sync, retain local export |
 
 ## Humor task series
 
@@ -208,11 +211,11 @@ Humor is static editorial curriculum with `off | light | playful` preference (`l
 neutral fallback, no AI/network, no humiliation, identity stereotypes, false etymology, or changed
 answers.
 
-| Task | 目标 | 非目标 | 依赖 | 文件范围 | 数据变化 | 测试要求与验收 | 回滚 |
-|---|---|---|---|---|---|---|---|
-| 7.1H | Humor schema and validator for six approved types | No content generation | 5.1P | curriculum/validator | Content metadata | Same target/answer, fallback, safety checks | Remove additive fields/rules |
-| 7.2H | Profile humor preference | No personalization profiling | 7.1H, 2.4R | profile/mobile | `humor_preference` | Default/update/offline selection; `off` always neutral | Default to off/remove control |
-| 7.3H | Human-authored reviewed humor content | No AI rewrite | 7.2H | curriculum/assets | Static content versions | Editorial status, locales, targets, fallbacks | Unpublish humor variants |
+| Task | 目标                                              | 非目标                       | 依赖       | 文件范围             | 数据变化                | 测试要求与验收                                         | 回滚                          |
+| ---- | ------------------------------------------------- | ---------------------------- | ---------- | -------------------- | ----------------------- | ------------------------------------------------------ | ----------------------------- |
+| 7.1H | Humor schema and validator for six approved types | No content generation        | 5.1P       | curriculum/validator | Content metadata        | Same target/answer, fallback, safety checks            | Remove additive fields/rules  |
+| 7.2H | Profile humor preference                          | No personalization profiling | 7.1H, 2.4R | profile/mobile       | `humor_preference`      | Default/update/offline selection; `off` always neutral | Default to off/remove control |
+| 7.3H | Human-authored reviewed humor content             | No AI rewrite                | 7.2H       | curriculum/assets    | Static content versions | Editorial status, locales, targets, fallbacks          | Unpublish humor variants      |
 
 ### 8.0 — Full V1 regression and release preparation
 

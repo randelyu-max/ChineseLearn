@@ -20,6 +20,7 @@ function candidate(
     difficulty: category === 'quick_success' ? 0.1 : 0.45,
     estimatedSeconds: 60,
     id,
+    learningDomain: 'hanzi',
     prerequisiteConceptIds: [],
     scores: {
       confusion: category === 'confusion_review' ? 1 : 0,
@@ -38,7 +39,7 @@ function candidate(
 function plannerInput(candidates: readonly SessionCandidate[]): SessionPlannerInput {
   return {
     candidates,
-    childAbility: 0.8,
+    abilityEstimate: 0.8,
     eligibleCurriculumNodeIds: ['current'],
     masteredConceptIds: [],
     recentPerformance: {
@@ -47,7 +48,7 @@ function plannerInput(candidates: readonly SessionCandidate[]): SessionPlannerIn
       responseStable: true,
       transferSucceeded: true,
     },
-    seed: 'child-session-001',
+    seed: 'session-001',
     targetMinutes: 8,
   };
 }
@@ -158,7 +159,7 @@ describe('session planning', () => {
   it('returns an empty safe result when no high-success closing activity exists', () => {
     const input = {
       ...plannerInput([candidate('hard', 'overdue_review', { difficulty: 1, supportBoost: 0 })]),
-      childAbility: 0.2,
+      abilityEstimate: 0.2,
     };
     const plan = buildSessionPlan(input);
 
@@ -172,7 +173,7 @@ describe('session planning', () => {
         candidate('easy-new', 'new_content', { difficulty: 0, supportBoost: 1 }),
         candidate('hard-review', 'overdue_review', { difficulty: 1, supportBoost: 0 }),
       ]),
-      childAbility: 0.2,
+      abilityEstimate: 0.2,
       recentPerformance: {
         accuracy: 0.4,
         fullHintRate: 0.6,
@@ -217,10 +218,10 @@ describe('session planning', () => {
 
   it('keeps predicted success finite and bounded for invalid numeric inputs', () => {
     const values = [-10, 0, 0.5, 1, 10, Number.NaN];
-    for (const childAbility of values) {
+    for (const abilityEstimate of values) {
       for (const difficulty of values) {
         const predicted = calculatePredictedSuccess({
-          childAbility,
+          abilityEstimate,
           confusionPenalty: Number.NaN,
           difficulty,
           supportBoost: Number.POSITIVE_INFINITY,
