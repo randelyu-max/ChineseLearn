@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 6.1W normalized vector writing canvas implemented; 6.2W is next.
+Status: Task 6.2W standard stroke-order lessons implemented; 6.3W is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -203,7 +203,7 @@ never call AI. Each task needs unit, local persistence, accessibility, and priva
 | Task | 目标                                                | 非目标                                   | 依赖       | 文件范围                 | 数据变化                           | 测试要求与验收                                             | 回滚                              |
 | ---- | --------------------------------------------------- | ---------------------------------------- | ---------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------- | --------------------------------- |
 | 6.1W (complete) | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload                        | 2.4R       | mobile writing/storage   | Local strokes                      | Implemented 2026-07-23: normalized trace, resize-safe SVG, undo/clear/replay, per-user Web/SQLite local drafts, bounded dense input | Remove route/local table          |
-| 6.2W | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Start/direction/structure/ratio; offline tracing           | Remove lesson layer/assets        |
+| 6.2W (complete) | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Implemented 2026-07-23: licensed offline 王家豪 fixture, ordered start/direction guide, observe/trace/free modes, unsupported fallback | Remove lesson layer/assets        |
 | 6.3W | Deterministic clear/compact/leaning/flowing styles  | No AI or celebrity imitation             | 6.2W       | pure transform module/UI | Selected style metadata            | Fixed input reproducibility/bounds; own-name only          | Remove transforms/style field     |
 | 6.4W | Local save and self-consistency feedback            | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API  | Server metadata/count/summary only | Assert no raw points/image payload; repeatability feedback | Disable sync, retain local export |
 

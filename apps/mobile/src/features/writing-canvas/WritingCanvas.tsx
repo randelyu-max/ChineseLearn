@@ -1,7 +1,7 @@
 import { borders, colors, radii, spacing } from '@hanziquest/design-tokens';
 import { useRef, useState } from 'react';
 import { StyleSheet, View, type GestureResponderEvent, type LayoutChangeEvent } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import Svg, { Circle, G, Path } from 'react-native-svg';
 
 import {
   appendStroke,
@@ -16,6 +16,7 @@ type CanvasSize = Readonly<{ height: number; width: number }>;
 
 type Props = Readonly<{
   disabled?: boolean;
+  guidePaths?: readonly string[];
   onChange(strokes: readonly Stroke[]): void;
   replayProgress?: number | null;
   strokes: readonly Stroke[];
@@ -35,6 +36,7 @@ function pointFromEvent(event: GestureResponderEvent, size: CanvasSize) {
 
 export function WritingCanvas({
   disabled = false,
+  guidePaths = [],
   onChange,
   replayProgress = null,
   strokes,
@@ -97,6 +99,21 @@ export function WritingCanvas({
         <View style={styles.horizontalGuide} />
         <View style={styles.verticalGuide} />
       </View>
+      {guidePaths.length > 0 ? (
+        <Svg
+          height="100%"
+          pointerEvents="none"
+          style={StyleSheet.absoluteFill}
+          viewBox="0 0 1024 1024"
+          width="100%"
+        >
+          <G transform="scale(1,-1) translate(0,-900)">
+            {guidePaths.map((path, index) => (
+              <Path d={path} fill={colors.surfaceMuted} key={`guide-${index}`} opacity={0.75} />
+            ))}
+          </G>
+        </Svg>
+      ) : null}
       <Svg height="100%" pointerEvents="none" width="100%">
         {renderedStrokes.map((stroke, index) => {
           if (stroke.points.length === 1) {

@@ -13,8 +13,16 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ErrorState, HanziText, LoadingState, useReducedMotion } from '@/components/ui';
 
+import {
+  advanceWritingLessonStroke,
+  createWritingLessonState,
+  restartWritingLessonStroke,
+  selectWritingLessonCharacter,
+  selectWritingLessonPhase,
+} from './lesson-model';
 import { undoLastStroke, type Stroke } from './model';
 import { getWritingDraftStore } from './store';
+import { StrokeOrderGuide } from './StrokeOrderGuide';
 import { createWritingDraftRecord } from './storage-model';
 import { WritingCanvas } from './WritingCanvas';
 
@@ -33,6 +41,7 @@ export function WritingPractice({ chineseName, ownerUserId }: Props) {
   const [strokes, setStrokes] = useState<readonly Stroke[]>([]);
   const [replayProgress, setReplayProgress] = useState<number | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [lesson, setLesson] = useState(() => createWritingLessonState(chineseName));
   const operationChain = useRef(Promise.resolve());
 
   useEffect(() => {
@@ -111,6 +120,7 @@ export function WritingPractice({ chineseName, ownerUserId }: Props) {
   }
 
   const isReplaying = replayProgress !== null && replayProgress < 1;
+  const activeAsset = lesson.assets[lesson.activeCharacterIndex] ?? null;
   const saveMessage =
     saveState === 'saving'
       ? '正在保存到本机…'
@@ -129,10 +139,50 @@ export function WritingPractice({ chineseName, ownerUserId }: Props) {
         <HanziText accessibilityLabel={`练习名字：${chineseName}`} size="display">
           {chineseName}
         </HanziText>
-        <Text style={styles.instructions}>在方格中自由书写。笔顺教学将在下一阶段加入。</Text>
+        <Text style={styles.instructions}>
+          先观察起笔位置和方向，再描写标准字形，最后过渡到自由书写。
+        </Text>
       </View>
+      {lesson.assets.length > 0 ? (
+        <>
+          <View style={styles.controls}>
+            {lesson.assets.map((asset, index) => (
+              <ControlButton
+                disabled={lesson.activeCharacterIndex === index}
+                key={`${asset.character}-${index}`}
+                label={asset.character}
+                onPress={() => setLesson((current) => selectWritingLessonCharacter(current, index))}
+              />
+            ))}
+          </View>
+          <View style={styles.controls}>
+            {(['observe', 'trace', 'free'] as const).map((phase) => (
+              <ControlButton
+                disabled={lesson.phase === phase}
+                key={phase}
+                label={phase === 'observe' ? '观察笔顺' : phase === 'trace' ? '描写' : '自由书写'}
+                onPress={() => setLesson((current) => selectWritingLessonPhase(current, phase))}
+              />
+            ))}
+          </View>
+        </>
+      ) : null}
+      {lesson.unsupportedCharacters.length > 0 ? (
+        <Text accessibilityLiveRegion="polite" style={styles.status}>
+          {lesson.unsupportedCharacters.join('、')} 暂无离线笔顺教材，可继续自由书写。
+        </Text>
+      ) : null}
+      {lesson.phase === 'observe' && activeAsset ? (
+        <StrokeOrderGuide
+          activeStrokeIndex={lesson.activeStrokeIndex}
+          asset={activeAsset}
+          onAdvance={() => setLesson(advanceWritingLessonStroke)}
+          onRestart={() => setLesson(restartWritingLessonStroke)}
+        />
+      ) : null}
       <WritingCanvas
-        disabled={isReplaying}
+        disabled={isReplaying || lesson.phase === 'observe'}
+        guidePaths={lesson.phase === 'trace' && activeAsset ? activeAsset.strokes : []}
         onChange={saveStrokes}
         replayProgress={replayProgress}
         strokes={strokes}

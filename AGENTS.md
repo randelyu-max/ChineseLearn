@@ -109,6 +109,6 @@ attempt batches, server-side answer evaluation, immutable/idempotent attempts, a
 skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Tasks 5.2P through
 5.8P added deterministic, accessible Pinyin exercises plus a versioned adaptive support runtime
 whose visible/revealed state is the source of truth for evidence weighting. The next eligible task
-is 6.2W. Task 6.1W added an own-name-only normalized vector canvas with local, per-user raw-stroke
-storage, undo, clear, and replay; do not silently combine it with stroke-order teaching or
-signature styling.
+is 6.3W. Tasks 6.1W–6.2W added an own-name-only normalized vector canvas, local per-user raw-stroke
+storage, and reviewed offline stroke-order lessons that progress from observation to tracing to
+free writing. Do not silently combine them with signature styling.
