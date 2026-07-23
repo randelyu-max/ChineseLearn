@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 5.6P five-tone `tone_choice` exercise implemented; 5.7P is next.
+Status: Task 5.7P tap-based `pinyin_syllable_build` implemented; 5.8P is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -191,7 +191,7 @@ preserving previous Pinyin tasks.
 | 5.4P (complete) | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: tone-aware distractors, required homophone context, stable target mapping, accessible responsive glyph choices  |
 | 5.5P (complete) | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: explicit accepted readings, required polyphone context, priority alternate reading, on-demand supportive hints  |
 | 5.6P (complete) | `tone_choice`                                                | No dialect judgment        | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: deterministic five-tone table, neutral-tone target, stable mapping, accessible choices, supportive retry         |
-| 5.7P            | `pinyin_syllable_build`                                      | No free text IME           | 5.1P                | mobile feature/tests           | None                     | Tap alternative, legal order, diacritics; accessible completion                                                                         |
+| 5.7P (complete) | `pinyin_syllable_build`                                      | No free text IME           | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: ordered tap controls, legal initial/final filtering, canonical tone marks, reset/retry, accessible completion    |
 | 5.8P            | Adaptive Pinyin display and fading                           | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests            | Support preference/state | Fade/re-enable/interruption tests; evidence and UI agree                                                                                |
 
 ## Writing task series

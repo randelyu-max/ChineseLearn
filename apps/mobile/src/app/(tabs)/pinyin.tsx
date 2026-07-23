@@ -41,6 +41,16 @@ import {
   selectPinyinToGlyphOption,
 } from '@/features/pinyin-to-glyph';
 import {
+  createPinyinSyllableBuildState,
+  PinyinSyllableBuildExercise,
+  pinyinSyllableBuildDemoExercise,
+  resetPinyinSyllable,
+  selectPinyinFinal,
+  selectPinyinInitial,
+  selectPinyinTone,
+  submitPinyinSyllable,
+} from '@/features/pinyin-syllable-build';
+import {
   createToneChoiceState,
   retryToneChoice,
   selectToneChoiceOption,
@@ -87,6 +97,7 @@ export default function PinyinScreen() {
   const [pinyinToGlyphState, setPinyinToGlyphState] = useState(createPinyinToGlyphState);
   const [glyphToPinyinState, setGlyphToPinyinState] = useState(createGlyphToPinyinState);
   const [toneChoiceState, setToneChoiceState] = useState(createToneChoiceState);
+  const [syllableBuildState, setSyllableBuildState] = useState(createPinyinSyllableBuildState);
   const [pinyinToAudioStatus, setPinyinToAudioStatus] = useState<PinyinToAudioPlaybackStatus>({
     failedOptionId: null,
     phase: 'loading',
@@ -275,6 +286,31 @@ export default function PinyinScreen() {
             )
           }
           state={toneChoiceState}
+        />
+        <PinyinSyllableBuildExercise
+          exercise={pinyinSyllableBuildDemoExercise}
+          onReset={() => setSyllableBuildState((current) => resetPinyinSyllable(current))}
+          onSelectFinal={(final) =>
+            setSyllableBuildState((current) =>
+              selectPinyinFinal(pinyinSyllableBuildDemoExercise, current, final),
+            )
+          }
+          onSelectInitial={(initial) =>
+            setSyllableBuildState((current) =>
+              selectPinyinInitial(pinyinSyllableBuildDemoExercise, current, initial),
+            )
+          }
+          onSelectTone={(tone) =>
+            setSyllableBuildState((current) =>
+              selectPinyinTone(pinyinSyllableBuildDemoExercise, current, tone),
+            )
+          }
+          onSubmit={() =>
+            setSyllableBuildState((current) =>
+              submitPinyinSyllable(pinyinSyllableBuildDemoExercise, current),
+            )
+          }
+          state={syllableBuildState}
         />
       </View>
     </Screen>
