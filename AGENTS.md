@@ -107,6 +107,6 @@ Report changed files, actual commands and results, privacy/security/learning imp
 remaining risks, and rollback instructions. Task 4.3R established bounded, session-authenticated
 attempt batches, server-side answer evaluation, immutable/idempotent attempts, authoritative
 skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Tasks 5.2P through
-5.7P added deterministic, accessible Pinyin/audio/glyph/tone exercises and ordered tap-based
-syllable assembly with legal combinations and canonical tone marks. The next eligible task is
-5.8P; do not silently combine it with a completed task.
+5.8P added deterministic, accessible Pinyin exercises plus a versioned adaptive support runtime
+whose visible/revealed state is the source of truth for evidence weighting. The next eligible task
+is 6.1W; do not silently combine it with a completed task.

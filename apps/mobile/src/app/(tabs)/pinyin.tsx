@@ -1,4 +1,8 @@
 import { spacing } from '@hanziquest/design-tokens';
+import {
+  completePinyinSupportActivity,
+  interruptPinyinSupportFade,
+} from '@hanziquest/learning-engine';
 import { preload, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
@@ -7,6 +11,11 @@ import ma2Audio from '../../../assets/audio/pinyin/ma2.mp3';
 import ma3Audio from '../../../assets/audio/pinyin/ma3.mp3';
 import ma4Audio from '../../../assets/audio/pinyin/ma4.mp3';
 import { Screen } from '@/components/ui';
+import {
+  AdaptivePinyinSupportCard,
+  createAdaptivePinyinDemoState,
+} from '@/features/adaptive-pinyin-support';
+import { useAuth } from '@/features/auth';
 import {
   AudioToPinyinExercise,
   audioToPinyinDemoExercise,
@@ -74,6 +83,7 @@ function preloadPinyinToAudio(): Promise<boolean> {
 let pinyinToAudioPreloadPromise = preloadPinyinToAudio();
 
 export default function PinyinScreen() {
+  const { state: authState } = useAuth();
   const audioToPinyinPlayer = useAudioPlayer(ma3Audio);
   const audioToPinyinPlayerStatus = useAudioPlayerStatus(audioToPinyinPlayer);
   const [audioToPinyinState, setAudioToPinyinState] = useState(createAudioToPinyinState);
@@ -98,6 +108,9 @@ export default function PinyinScreen() {
   const [glyphToPinyinState, setGlyphToPinyinState] = useState(createGlyphToPinyinState);
   const [toneChoiceState, setToneChoiceState] = useState(createToneChoiceState);
   const [syllableBuildState, setSyllableBuildState] = useState(createPinyinSyllableBuildState);
+  const [adaptivePinyinState, setAdaptivePinyinState] = useState(() =>
+    createAdaptivePinyinDemoState(authState.profile?.pinyinSupportMode ?? 'adaptive'),
+  );
   const [pinyinToAudioStatus, setPinyinToAudioStatus] = useState<PinyinToAudioPlaybackStatus>({
     failedOptionId: null,
     phase: 'loading',
@@ -311,6 +324,13 @@ export default function PinyinScreen() {
             )
           }
           state={syllableBuildState}
+        />
+        <AdaptivePinyinSupportCard
+          onCompleteActivity={() =>
+            setAdaptivePinyinState((current) => completePinyinSupportActivity(current))
+          }
+          onReveal={() => setAdaptivePinyinState((current) => interruptPinyinSupportFade(current))}
+          state={adaptivePinyinState}
         />
       </View>
     </Screen>

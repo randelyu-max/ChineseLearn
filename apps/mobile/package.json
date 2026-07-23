@@ -19,6 +19,7 @@
     "@hanziquest/contracts": "workspace:*",
     "@hanziquest/curriculum": "workspace:*",
     "@hanziquest/design-tokens": "workspace:*",
+    "@hanziquest/learning-engine": "workspace:*",
     "better-auth": "1.6.24",
     "expo": "~57.0.8",
     "expo-audio": "~57.0.3",
