@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 4.2R local cache and durable attempt outbox implemented; 4.3R is next.
+Status: Task 4.3R authoritative attempt batching and outbox synchronization implemented; 5.2P is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -17,7 +17,7 @@ database still uses `child_id`.
 ## Required order
 
 P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
-5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
+5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R (complete) → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
 
 ## Task cards
 
@@ -166,6 +166,7 @@ P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R
 
 ### 4.3R — Single-user `attempts-batch`
 
+- **状态：** Implemented on 2026-07-23; 5.2P is separately scoped.
 - **目标：** Validate answers and apply idempotent authoritative learning updates.
 - **非目标：** No client mastery writes or rewards redesign.
 - **依赖：** 4.2R, 3.6R.

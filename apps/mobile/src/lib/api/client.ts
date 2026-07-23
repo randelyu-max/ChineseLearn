@@ -23,11 +23,19 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
       headers,
     });
     if (!response.ok) {
-      const body = (await response.json().catch(() => null)) as { code?: unknown } | null;
+      const body = (await response.json().catch(() => null)) as {
+        code?: unknown;
+        error?: { code?: unknown };
+      } | null;
       return {
         ok: false,
         status: response.status,
-        code: typeof body?.code === 'string' ? body.code : 'request_failed',
+        code:
+          typeof body?.error?.code === 'string'
+            ? body.error.code
+            : typeof body?.code === 'string'
+              ? body.code
+              : 'request_failed',
       };
     }
     return { ok: true, value: (await response.json()) as T };

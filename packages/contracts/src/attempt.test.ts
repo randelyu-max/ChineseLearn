@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { AttemptDraftSchema } from './attempt.ts';
+import { AttemptsBatchRequestSchema, AttemptDraftSchema } from './attempt.ts';
 
 const validAttempt = {
   attemptId: '00000000-0000-4000-8000-000000000001',
@@ -39,5 +39,24 @@ describe('AttemptDraftSchema', () => {
         },
       }).success,
     ).toBe(true);
+  });
+
+  it('accepts a bounded ownership-free batch and rejects duplicate event IDs', () => {
+    const batch = {
+      schemaVersion: 'attempts-batch-request-v1',
+      sessionId: '00000000-0000-4000-8000-000000000010',
+      idempotencyKey: 'attempts-batch:00000000-0000-4000-8000-000000000010',
+      attempts: [validAttempt],
+    };
+    expect(AttemptsBatchRequestSchema.safeParse(batch).success).toBe(true);
+    expect(
+      AttemptsBatchRequestSchema.safeParse({
+        ...batch,
+        attempts: [validAttempt, validAttempt],
+      }).success,
+    ).toBe(false);
+    expect(
+      AttemptsBatchRequestSchema.safeParse({ ...batch, userId: batch.sessionId }).success,
+    ).toBe(false);
   });
 });

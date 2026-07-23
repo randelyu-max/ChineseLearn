@@ -104,6 +104,7 @@ rewrite unrelated files.
 ## Completion report
 
 Report changed files, actual commands and results, privacy/security/learning implications,
-remaining risks, and rollback instructions. Task 4.2R established the versioned SQLite/Web local
-cache, active-session snapshot, durable attempt outbox, sync cursor, and restart recovery path.
-The next eligible task is 4.3R; do not begin it without explicit continuing authorization.
+remaining risks, and rollback instructions. Task 4.3R established bounded, session-authenticated
+attempt batches, server-side answer evaluation, immutable/idempotent attempts, authoritative
+skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. The next eligible
+task is 5.2P; do not silently combine it with a completed task.

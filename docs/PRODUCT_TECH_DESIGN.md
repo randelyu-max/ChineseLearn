@@ -1,6 +1,6 @@
 # HanziQuest V1 产品与技术设计基线
 
-状态：Task 4.2R 本地缓存与持久化 Outbox 后的决策基线
+状态：Task 4.3R 权威作答批处理与 Outbox 同步后的决策基线
 
 目标用户：会说或听得懂一些中文、但不熟悉汉字阅读和书写的 13 岁以上海外华裔青少年及成人
 
@@ -269,6 +269,22 @@ localStorage 适配器。当前本地 schema 版本为 2，表仅包含：
 旧版 SecureStore/localStorage 演示课程状态在首次读取后迁移到 session snapshot。存储层支持
 导出恢复 JSON 和清空本地缓存作为回滚/修复手段。它不缓存 profile、token、原始签名轨迹、
 签名图片或原始音频，日志也不输出作答 payload。
+
+`POST /api/attempts-batch` 接受最多 50 个同一会话的版本化作答事件。用户身份只来自 Better
+Auth 会话；服务端通过 RLS 读取该用户自己的学习会话和已发布课程内容，重新校验答案，而不
+信任客户端提交的 `isCorrect`。错误答案仍可作为有效学习证据保存；活动不存在、答案结构
+无效或会话不属于当前用户时返回稳定机器码。
+
+服务端以 `(user_id, offline_event_id)` 唯一约束保证重试幂等。新事件先写入不可变
+`attempts`，再在同一数据库事务中按 `device_event_at`、`offline_sequence` 和事件 ID 的
+稳定顺序重放相关证据，更新服务端权威的 skill state 与 review schedule。并发请求锁定同一
+技能状态行并从不可变事实重算，因此一个离线事件至多改变一次状态；响应游标由最后接收的
+作答时间和 ID 构成。
+
+移动端恢复网络后按会话和本地顺序提交 outbox。`accepted`、`duplicate` 以及不可重试的
+`rejected` 结果会从队列移除并保存服务器游标；网络或临时协议失败会保留事件并增加重试
+计数。当前演示课程使用本地演示会话，只有由 `session-plan` 创建的真实服务器会话可完成
+同步；演示事件会安全保留，等待后续学习 UI 接入真实会话规划。
 
 ## 9. 隐私与安全
 

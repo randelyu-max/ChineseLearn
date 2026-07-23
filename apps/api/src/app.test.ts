@@ -35,4 +35,17 @@ describe('API app', () => {
     const response = await createApp(config, auth, pool).request('/api/profile');
     expect(response.status).toBe(401);
   });
+
+  it('denies attempts-batch access without a session', async () => {
+    const response = await createApp(config, auth, pool).request('/api/attempts-batch', {
+      body: '{}',
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      apiVersion: 'v1',
+      error: { code: 'UNAUTHENTICATED' },
+    });
+  });
 });

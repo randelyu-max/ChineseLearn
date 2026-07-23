@@ -1,9 +1,19 @@
+import { useNetworkState } from 'expo-network';
 import { Stack } from 'expo-router';
+import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '@/features/auth';
+import { getOfflineStore, syncPendingAttemptsWithApi } from '@/features/offline-storage';
 
 function RootNavigator() {
   const { state } = useAuth();
+  const network = useNetworkState();
+  useEffect(() => {
+    if (state.status !== 'ready' || !network.isConnected) return;
+    void getOfflineStore()
+      .then((store) => syncPendingAttemptsWithApi(store))
+      .catch(() => undefined);
+  }, [network.isConnected, state.status]);
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={state.status === 'ready'}>

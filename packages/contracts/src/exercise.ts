@@ -196,3 +196,12 @@ export const SentenceOrderExerciseSchema = z
 
 export type SentenceOrderTile = z.infer<typeof SentenceOrderTileSchema>;
 export type SentenceOrderExercise = z.infer<typeof SentenceOrderExerciseSchema>;
+
+export const LearningExerciseSchema = z.discriminatedUnion('type', [
+  AudioToGlyphExerciseSchema,
+  GlyphToImageExerciseSchema,
+  WordBuildExerciseSchema,
+  SentenceOrderExerciseSchema,
+]);
+
+export type LearningExercise = z.infer<typeof LearningExerciseSchema>;

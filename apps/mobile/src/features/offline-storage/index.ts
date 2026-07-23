@@ -34,4 +34,6 @@ export function getOfflineStore(): Promise<OfflineStore> {
 }
 
 export * from './model';
+export * from './sync';
+export * from './sync-with-api';
 export { createWebOfflineStore } from './web-store';
