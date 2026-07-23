@@ -23,6 +23,8 @@ import {
 import { undoLastStroke, type Stroke } from './model';
 import { getWritingDraftStore } from './store';
 import { StrokeOrderGuide } from './StrokeOrderGuide';
+import { SignatureStylePicker } from './SignatureStylePicker';
+import type { SignatureStyle } from './signature-transform';
 import { createWritingDraftRecord } from './storage-model';
 import { WritingCanvas } from './WritingCanvas';
 
@@ -42,6 +44,7 @@ export function WritingPractice({ chineseName, ownerUserId }: Props) {
   const [replayProgress, setReplayProgress] = useState<number | null>(null);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [lesson, setLesson] = useState(() => createWritingLessonState(chineseName));
+  const [selectedStyle, setSelectedStyle] = useState<SignatureStyle>('clear');
   const operationChain = useRef(Promise.resolve());
 
   useEffect(() => {
@@ -215,6 +218,14 @@ export function WritingPractice({ chineseName, ownerUserId }: Props) {
         >
           <Text style={styles.finishReplayLabel}>{isReplaying ? '停止重放' : '返回书写'}</Text>
         </Pressable>
+      ) : null}
+      {lesson.phase === 'free' && strokes.length > 0 ? (
+        <SignatureStylePicker
+          chineseName={chineseName}
+          onSelect={setSelectedStyle}
+          selectedStyle={selectedStyle}
+          strokes={strokes}
+        />
       ) : null}
     </View>
   );
