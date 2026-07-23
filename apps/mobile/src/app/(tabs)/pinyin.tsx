@@ -26,6 +26,14 @@ import {
   type PinyinToAudioPlaybackStatus,
 } from '@/features/pinyin-to-audio';
 import {
+  createGlyphToPinyinState,
+  GlyphToPinyinExercise,
+  glyphToPinyinDemoExercise,
+  requestGlyphToPinyinHint,
+  retryGlyphToPinyin,
+  selectGlyphToPinyinOption,
+} from '@/features/glyph-to-pinyin';
+import {
   createPinyinToGlyphState,
   PinyinToGlyphExercise,
   pinyinToGlyphDemoExercise,
@@ -70,6 +78,7 @@ export default function PinyinScreen() {
   const ma4Status = useAudioPlayerStatus(ma4Player);
   const [pinyinToAudioState, setPinyinToAudioState] = useState(createPinyinToAudioState);
   const [pinyinToGlyphState, setPinyinToGlyphState] = useState(createPinyinToGlyphState);
+  const [glyphToPinyinState, setGlyphToPinyinState] = useState(createGlyphToPinyinState);
   const [pinyinToAudioStatus, setPinyinToAudioStatus] = useState<PinyinToAudioPlaybackStatus>({
     failedOptionId: null,
     phase: 'loading',
@@ -237,6 +246,17 @@ export default function PinyinScreen() {
             )
           }
           state={pinyinToGlyphState}
+        />
+        <GlyphToPinyinExercise
+          exercise={glyphToPinyinDemoExercise}
+          onHint={() => setGlyphToPinyinState((current) => requestGlyphToPinyinHint(current))}
+          onRetry={() => setGlyphToPinyinState((current) => retryGlyphToPinyin(current))}
+          onSelectOption={(optionId) =>
+            setGlyphToPinyinState((current) =>
+              selectGlyphToPinyinOption(glyphToPinyinDemoExercise, current, optionId),
+            )
+          }
+          state={glyphToPinyinState}
         />
       </View>
     </Screen>

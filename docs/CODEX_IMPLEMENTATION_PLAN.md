@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 5.4P deterministic `pinyin_to_glyph` exercise implemented; 5.5P is next.
+Status: Task 5.5P contextual `glyph_to_pinyin` exercise implemented; 5.6P is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -189,7 +189,7 @@ preserving previous Pinyin tasks.
 | 5.2P (complete) | `audio_to_pinyin`                                            | No speech upload           | 5.1P                | mobile feature/tests           | Attempts only later      | Implemented 2026-07-23: deterministic tone distractors, bundled/replayable MP3, supportive retry, responsive and screen-reader semantics |
 | 5.3P (complete) | `pinyin_to_audio`                                            | No pronunciation scoring   | 5.2P                | mobile feature/tests           | None                     | Implemented 2026-07-23: module-scope preload, per-clip replay/error recovery, bundled assets, stable correct clip, accessible controls   |
 | 5.4P (complete) | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: tone-aware distractors, required homophone context, stable target mapping, accessible responsive glyph choices  |
-| 5.5P            | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Polyphone context and hints; accepted reading explicit                                                                                  |
+| 5.5P (complete) | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: explicit accepted readings, required polyphone context, priority alternate reading, on-demand supportive hints  |
 | 5.6P            | `tone_choice`                                                | No dialect judgment        | 5.1P                | mobile feature/tests           | None                     | Tone/neutral-tone table tests; no shaming copy                                                                                          |
 | 5.7P            | `pinyin_syllable_build`                                      | No free text IME           | 5.1P                | mobile feature/tests           | None                     | Tap alternative, legal order, diacritics; accessible completion                                                                         |
 | 5.8P            | Adaptive Pinyin display and fading                           | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests            | Support preference/state | Fade/re-enable/interruption tests; evidence and UI agree                                                                                |
