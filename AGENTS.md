@@ -106,7 +106,7 @@ rewrite unrelated files.
 Report changed files, actual commands and results, privacy/security/learning implications,
 remaining risks, and rollback instructions. Task 4.3R established bounded, session-authenticated
 attempt batches, server-side answer evaluation, immutable/idempotent attempts, authoritative
-skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Tasks 5.2P and
-5.3P added deterministic, accessible, bundled-audio `audio_to_pinyin` and `pinyin_to_audio`
-exercises without recording or speech upload. The next eligible task is 5.4P; do not silently
-combine it with a completed task.
+skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Tasks 5.2P through
+5.4P added deterministic, accessible `audio_to_pinyin`, `pinyin_to_audio`, and `pinyin_to_glyph`
+exercises, including explicit homophone disambiguation and no translation dependency. The next
+eligible task is 5.5P; do not silently combine it with a completed task.
