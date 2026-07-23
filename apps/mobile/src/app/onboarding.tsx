@@ -1,5 +1,5 @@
 import { colors, fontSizes, spacing } from '@hanziquest/design-tokens';
-import { Redirect } from 'expo-router';
+import { Redirect, type Href, useRouter } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
@@ -45,16 +45,18 @@ function Choice<T extends string>({
 
 export default function OnboardingScreen() {
   const { acceptProfile, state } = useAuth();
+  const router = useRouter();
   const [draft, setDraft] = useState<ProfileDraft>(() => state.profile ?? createProfileDraft());
   const [notice, setNotice] = useState<string | null>(null);
-  if (state.status === 'ready') return <Redirect href="/" />;
-  if (state.status !== 'onboarding_required') return <Redirect href="/" />;
+  const [saving, setSaving] = useState(false);
+  const editing = state.status === 'ready';
+  if (!editing && state.status !== 'onboarding_required') return <Redirect href="/" />;
   const update = <K extends keyof ProfileDraft>(key: K, value: ProfileDraft[K]) =>
     setDraft((current) => ({ ...current, [key]: value }));
   return (
     <Screen scrollable style={styles.screen}>
       <Text accessibilityRole="header" style={styles.title}>
-        首次设置
+        {editing ? '个人设置' : '首次设置'}
       </Text>
       <Text style={styles.body}>这些设置只用于调整你的学习体验，以后可以在“我的”中修改。</Text>
       <TextInput
@@ -109,6 +111,9 @@ export default function OnboardingScreen() {
         ]}
         value={draft.humorPreference}
       />
+      <Text style={styles.body}>
+        “关闭”始终使用中性文案；其他选项只会选择已经人工审核并随应用提供的内容。
+      </Text>
       <Choice
         label="每日目标"
         onChange={(value) => update('dailyGoalMinutes', Number(value))}
@@ -117,7 +122,8 @@ export default function OnboardingScreen() {
       />
       {notice ? <Text style={styles.notice}>{notice}</Text> : null}
       <PrimaryButton
-        label="保存并开始学习"
+        label={editing ? '保存设置' : '保存并开始学习'}
+        loading={saving}
         onPress={async () => {
           setNotice(null);
           if (validateProfileDraft(draft).length > 0) {
@@ -128,9 +134,12 @@ export default function OnboardingScreen() {
             setNotice('账户服务暂时不可用。');
             return;
           }
+          setSaving(true);
           const result = await saveProfile(draft);
+          setSaving(false);
           if (result.ok) {
             acceptProfile(result.value);
+            router.replace((editing ? '/(tabs)/me' : '/') as Href);
           } else {
             setNotice('暂时无法保存设置，请稍后重试。');
           }

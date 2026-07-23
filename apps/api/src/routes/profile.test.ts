@@ -25,4 +25,13 @@ describe('profile input boundary', () => {
     expect(readProfileInput({ ...valid, pinyinSupportMode: 'sometimes' })).toBeNull();
     expect(readProfileInput({ ...valid, userId: 'forged' })).toBeNull();
   });
+
+  it('accepts each supported humor preference and rejects unknown values', () => {
+    expect(readProfileInput({ ...valid, humorPreference: 'off' })?.humorPreference).toBe('off');
+    expect(readProfileInput({ ...valid, humorPreference: 'light' })?.humorPreference).toBe('light');
+    expect(readProfileInput({ ...valid, humorPreference: 'playful' })?.humorPreference).toBe(
+      'playful',
+    );
+    expect(readProfileInput({ ...valid, humorPreference: 'personalized' })).toBeNull();
+  });
 });

@@ -36,6 +36,12 @@ unchanged learning targets and answers, release review, supportive language, and
 mnemonic-not-etymology disclosure for memory scenes. Actual reviewed humor content remains a later
 task.
 
+Task 7.2H keeps the existing `light` profile default and adds an age-neutral preference control.
+The pure selector works against bundled content without network access: `off` always selects the
+neutral fallback, `light` cannot select playful variants, and a missing offline preference fails
+closed to neutral. Preference updates continue through the authenticated profile endpoint and do
+not create a personalization profile.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)

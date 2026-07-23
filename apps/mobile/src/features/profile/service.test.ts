@@ -48,4 +48,29 @@ describe('profile service', () => {
     ).resolves.toEqual({ ok: false, notice: 'invalid' });
     expect(apiRequest).not.toHaveBeenCalled();
   });
+
+  it('updates an authenticated profile humor preference through the existing profile endpoint', async () => {
+    const draft = {
+      displayName: 'Learner',
+      chineseName: null,
+      interfaceLocale: 'zh-CN',
+      scriptPreference: 'simplified',
+      pinyinSupportMode: 'adaptive',
+      humorPreference: 'off',
+      dailyGoalMinutes: 10,
+    } as const;
+    apiRequest.mockResolvedValue({
+      ok: true,
+      value: { id: 'user-a', ...draft },
+    });
+
+    await expect(saveProfile(draft)).resolves.toMatchObject({
+      ok: true,
+      value: { id: 'user-a', humorPreference: 'off' },
+    });
+    expect(apiRequest).toHaveBeenCalledWith('/api/profile', {
+      body: JSON.stringify(draft),
+      method: 'PUT',
+    });
+  });
 });

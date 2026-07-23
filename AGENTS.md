@@ -109,9 +109,10 @@ attempt batches, server-side answer evaluation, immutable/idempotent attempts, a
 skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Tasks 5.2P through
 5.8P added deterministic, accessible Pinyin exercises plus a versioned adaptive support runtime
 whose visible/revealed state is the source of truth for evidence weighting. The next eligible task
-is 7.2H. Tasks 6.1W–6.4W added an own-name-only normalized vector canvas, local per-user raw-stroke
+is 7.3H. Tasks 6.1W–6.4W added an own-name-only normalized vector canvas, local per-user raw-stroke
 storage, reviewed offline stroke-order lessons, four deterministic bounded style previews, and
 local self-consistency feedback with a raw-free idempotent metadata API. Do not silently combine
-them with forensic verification or human-signature imitation. Task 7.1H added only the versioned
-static humor schema and safety validator; actual reviewed content and preference behavior remain
-separate tasks.
+them with forensic verification or human-signature imitation. Task 7.1H added the versioned static
+humor schema and safety validator. Task 7.2H added only the profile preference control and pure
+offline selector: `off` always resolves to the neutral fallback, missing preference fails closed,
+and no personalization profile is created. Actual reviewed content remains Task 7.3H.
