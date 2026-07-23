@@ -1,6 +1,6 @@
 # HanziQuest V1 产品与技术设计基线
 
-状态：Task 4.1R 单用户会话计划 API 后的决策基线
+状态：Task 4.2R 本地缓存与持久化 Outbox 后的决策基线
 
 目标用户：会说或听得懂一些中文、但不熟悉汉字阅读和书写的 13 岁以上海外华裔青少年及成人
 
@@ -252,6 +252,23 @@ type Stroke = {
 内容包可离线读取。作答先写本地持久化 outbox；恢复网络后按不可变客户端事件 UUID
 批量提交。服务端以 `(user_id, offline_event_id)` 去重，按状态版本处理并发和乱序。
 多设备 pull sync 使用游标，不依赖内存队列。
+
+移动原生端使用 `expo-sqlite` 的 `hanziquest-offline.db`，Web 使用同一领域契约下的单文档
+localStorage 适配器。当前本地 schema 版本为 2，表仅包含：
+
+- `local_content_cache`
+- `local_session_snapshots`
+- `local_attempt_outbox`
+- `local_sync_cursors`
+
+作答完成时，attempt 与更新后的 session snapshot 在一个 SQLite 事务（Web 为一次文档写入）
+中保存，成功后 UI 才标记关卡完成。`attempt_id` 是安全随机 UUID 和本地去重主键；outbox
+按 `offline_sequence` 与 UUID 确定性排序。应用重启时，遗留 `in_flight` 项恢复为
+`pending`，损坏 payload 被隔离而不会阻塞其他作答。
+
+旧版 SecureStore/localStorage 演示课程状态在首次读取后迁移到 session snapshot。存储层支持
+导出恢复 JSON 和清空本地缓存作为回滚/修复手段。它不缓存 profile、token、原始签名轨迹、
+签名图片或原始音频，日志也不输出作答 payload。
 
 ## 9. 隐私与安全
 

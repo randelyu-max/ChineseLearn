@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 4.1R single-user session-plan API implemented; 4.2R is next.
+Status: Task 4.2R local cache and durable attempt outbox implemented; 4.3R is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -17,7 +17,7 @@ database still uses `child_id`.
 ## Required order
 
 P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
-5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
+5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
 
 ## Task cards
 
@@ -153,6 +153,7 @@ P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R
 
 ### 4.2R — Local cache and Outbox
 
+- **状态：** Implemented on 2026-07-23; 4.3R is separately scoped.
 - **目标：** Persist content, active session, attempts, and sync queue offline.
 - **非目标：** No server attempt processing.
 - **依赖：** 4.1R.

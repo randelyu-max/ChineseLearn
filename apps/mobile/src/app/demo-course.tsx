@@ -6,6 +6,8 @@ import {
   radii,
   spacing,
 } from '@hanziquest/design-tokens';
+import type { AttemptDraft } from '@hanziquest/contracts';
+import * as Crypto from 'expo-crypto';
 import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -41,7 +43,12 @@ import {
   retryGlyphToImage,
   selectGlyphToImageOption,
 } from '@/features/glyph-to-image';
-import { loadRecoveredCourse, saveRecoveredCourse } from '@/features/offline-course/recovery';
+import {
+  cacheDemoCourseContent,
+  loadRecoveredCourse,
+  saveAttemptAndRecoveredCourse,
+  saveRecoveredCourse,
+} from '@/features/offline-course/recovery';
 import {
   createSentenceOrderState,
   recordSentenceReplay,
@@ -70,7 +77,7 @@ function speak(text: string): void {
 
 function attemptContext(sequence: number) {
   return {
-    attemptId: () => `30000000-0000-4000-8000-${String(sequence + 1).padStart(12, '0')}`,
+    attemptId: () => Crypto.randomUUID(),
     nowIso: () => new Date().toISOString(),
     nowMs: () => performance.now(),
     offlineSequence: sequence,
@@ -80,6 +87,9 @@ function attemptContext(sequence: number) {
 export default function DemoCourseScreen() {
   const [course, setCourse] = useState(createDemoCourseState);
   const [recoveryReady, setRecoveryReady] = useState(false);
+  const [offlineSaveStatus, setOfflineSaveStatus] = useState<
+    'error' | 'ready' | 'saving' | 'saved'
+  >('ready');
   const [audioState, setAudioState] = useState(() => createAudioToGlyphState(performance.now()));
   const [imageState, setImageState] = useState(() => createGlyphToImageState(performance.now()));
   const [wordState, setWordState] = useState(() => createWordBuildState(performance.now()));
@@ -89,19 +99,46 @@ export default function DemoCourseScreen() {
 
   useEffect(() => {
     let active = true;
-    void loadRecoveredCourse().then((recovered) => {
-      if (!active) return;
-      setCourse(recovered);
-      setRecoveryReady(true);
-    });
+    void Promise.all([
+      loadRecoveredCourse(),
+      cacheDemoCourseContent({
+        contentVersion: 'home-demo-1.0.0',
+        courseTitle: '我的家',
+        storyTitle: homeDemoStory.title,
+      }),
+    ])
+      .then(([recovered]) => {
+        if (!active) return;
+        setCourse(recovered);
+        setRecoveryReady(true);
+      })
+      .catch(() => {
+        if (!active) return;
+        setOfflineSaveStatus('error');
+        setRecoveryReady(true);
+      });
     return () => {
       active = false;
     };
   }, []);
 
   useEffect(() => {
-    if (recoveryReady) void saveRecoveredCourse(course);
+    if (recoveryReady) {
+      void saveRecoveredCourse(course).catch(() => setOfflineSaveStatus('error'));
+    }
   }, [course, recoveryReady]);
+
+  async function persistCompletedAttempt(attempt: AttemptDraft): Promise<void> {
+    const nextCourse = completeExerciseStage(course);
+    setOfflineSaveStatus('saving');
+    try {
+      await saveAttemptAndRecoveredCourse(attempt, nextCourse);
+      setCourse(nextCourse);
+      setOfflineSaveStatus('saved');
+    } catch {
+      setOfflineSaveStatus('error');
+    }
+  }
 
   const stageComplete = course.completedStageCount > course.currentStage;
   const continueButton = stageComplete ? (
@@ -121,6 +158,23 @@ export default function DemoCourseScreen() {
         <ProgressBar label="课程进度" value={demoCourseProgress(course)} />
       </View>
 
+      {offlineSaveStatus === 'saving' ? (
+        <Text accessibilityLiveRegion="polite" style={styles.offlineNotice}>
+          正在安全保存本次作答…
+        </Text>
+      ) : null}
+      {offlineSaveStatus === 'saved' ? (
+        <Text accessibilityLiveRegion="polite" style={styles.offlineNotice}>
+          本次作答已保存在设备上，离线也不会丢失。
+        </Text>
+      ) : null}
+      {offlineSaveStatus === 'error' ? (
+        <View accessibilityLiveRegion="assertive" style={styles.offlineError}>
+          <Text style={styles.feedbackTitle}>暂时无法保存学习进度</Text>
+          <Text style={styles.body}>请保留此页面并再试一次；尚未保存的关卡不会被标记为完成。</Text>
+        </View>
+      ) : null}
+
       {course.currentStage === 0 ? (
         <AudioToGlyphExercise
           exercise={homeAudioToGlyphExercise}
@@ -138,7 +192,7 @@ export default function DemoCourseScreen() {
               attemptContext(0),
             );
             setAudioState(result.state);
-            if (result.attempt) setCourse((current) => completeExerciseStage(current));
+            if (result.attempt) void persistCompletedAttempt(result.attempt);
           }}
           state={audioState}
         />
@@ -161,7 +215,7 @@ export default function DemoCourseScreen() {
               attemptContext(1),
             );
             setImageState(result.state);
-            if (result.attempt) setCourse((current) => completeExerciseStage(current));
+            if (result.attempt) void persistCompletedAttempt(result.attempt);
           }}
           renderOptionVisual={(option) => (
             <Text style={styles.illustration}>{homeDemoVisualByAssetId[option.imageAssetId]}</Text>
@@ -182,7 +236,7 @@ export default function DemoCourseScreen() {
           onSubmit={() => {
             const result = submitWordBuild(homeWordBuildExercise, wordState, attemptContext(2));
             setWordState(result.state);
-            if (result.attempt) setCourse((current) => completeExerciseStage(current));
+            if (result.attempt) void persistCompletedAttempt(result.attempt);
           }}
           onToggleTile={(tileId) =>
             setWordState((current) => toggleWordBuildTile(homeWordBuildExercise, current, tileId))
@@ -209,7 +263,7 @@ export default function DemoCourseScreen() {
               attemptContext(3),
             );
             setSentenceState(result.state);
-            if (result.attempt) setCourse((current) => completeExerciseStage(current));
+            if (result.attempt) void persistCompletedAttempt(result.attempt);
           }}
           onToggleTile={(tileId) =>
             setSentenceState((current) =>
@@ -351,6 +405,17 @@ const styles = StyleSheet.create({
   },
   header: { gap: spacing.md },
   illustration: { fontSize: 58, lineHeight: 72 },
+  offlineError: {
+    backgroundColor: colors.warningSurface,
+    borderRadius: radii.lg,
+    gap: spacing.sm,
+    padding: spacing.lg,
+  },
+  offlineNotice: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.body,
+    textAlign: 'center',
+  },
   question: {
     color: colors.textPrimary,
     fontSize: fontSizes.heading,
