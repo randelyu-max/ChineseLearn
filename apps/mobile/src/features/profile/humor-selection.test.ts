@@ -1,47 +1,9 @@
-import type { HumorContentItem } from '@hanziquest/curriculum';
+import { approvedHumorContentFixture } from '@hanziquest/curriculum';
 import { describe, expect, it } from 'vitest';
 
 import { selectHumorPresentation } from './humor-selection';
 
-const item = {
-  audience: 'age_neutral_13_plus',
-  authoring: 'human_editorial',
-  delivery: 'bundled',
-  editorialStatus: 'approved',
-  humorLevel: 'playful',
-  humorType: 'surprise_ending',
-  humorousVariant: {
-    correctAnswer: { simplified: '马', traditional: '馬' },
-    correctAnswerId: 'answer-ma3',
-    kind: 'humorous',
-    learningTargetDisplay: { simplified: '马', traditional: '馬' },
-    prompt: { simplified: '马慢慢走进了最后一题。', traditional: '馬慢慢走進了最後一題。' },
-  },
-  id: '70000000-0000-4000-8000-000000000001',
-  knowledgeClaim: { kind: 'none' },
-  learningTarget: {
-    display: { simplified: '马', traditional: '馬' },
-    domain: 'hanzi',
-    targetId: 'hanzi-ma',
-  },
-  locale: 'zh-CN',
-  neutralFallback: {
-    correctAnswer: { simplified: '马', traditional: '馬' },
-    correctAnswerId: 'answer-ma3',
-    kind: 'neutral',
-    learningTargetDisplay: { simplified: '马', traditional: '馬' },
-    prompt: { simplified: '请选择汉字“马”。', traditional: '請選擇漢字「馬」。' },
-  },
-  safetyReview: {
-    errorMockery: 'passed',
-    etymologyAccuracy: 'passed',
-    humiliation: 'passed',
-    identityStereotypes: 'passed',
-    learningTargetAccuracy: 'passed',
-    reviewedAt: '2026-07-23T12:00:00.000Z',
-    reviewedBy: 'fixture-editor',
-  },
-} as const satisfies HumorContentItem;
+const item = approvedHumorContentFixture.items[5]!;
 
 describe('offline humor preference selection', () => {
   it('always returns the neutral fallback when the preference is off', () => {
@@ -78,7 +40,7 @@ describe('offline humor preference selection', () => {
   });
 
   it('allows light content for both enabled preference levels', () => {
-    const lightItem = { ...item, humorLevel: 'light' } as const;
+    const lightItem = approvedHumorContentFixture.items[0]!;
 
     expect(selectHumorPresentation(lightItem, 'light').presentation.kind).toBe('humorous');
     expect(selectHumorPresentation(lightItem, 'playful').presentation.kind).toBe('humorous');

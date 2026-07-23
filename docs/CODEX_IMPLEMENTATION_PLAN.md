@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 7.2H profile humor preference implemented; 7.3H is next.
+Status: Task 7.3H published human-editorial humor content implemented; 8.0 is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -217,7 +217,7 @@ answers.
 | ---- | ------------------------------------------------- | ---------------------------- | ---------- | -------------------- | ----------------------- | ------------------------------------------------------ | ----------------------------- |
 | 7.1H (complete) | Humor schema and validator for six approved types | No content generation        | 5.1P       | curriculum/validator | Content metadata        | Implemented 2026-07-23: versioned bundled human-editorial schema, six types, exact target/answer and neutral fallback checks, release review and deterministic safety gates | Remove additive fields/rules  |
 | 7.2H (complete) | Profile humor preference                          | No personalization profiling | 7.1H, 2.4R | profile/mobile       | Existing `humor_preference` | Implemented 2026-07-23: existing `light` default and strict update endpoint retained; age-neutral mobile control added; pure bundled selector is deterministic offline, fails closed when unavailable, and maps `off` to neutral unconditionally | Default to off/remove control |
-| 7.3H | Human-authored reviewed humor content             | No AI rewrite                | 7.2H       | curriculum/assets    | Static content versions | Editorial status, locales, targets, fallbacks          | Unpublish humor variants      |
+| 7.3H (complete) | Human-authored reviewed humor content             | No runtime rewrite or generation | 7.2H       | curriculum/assets    | `humor-content-v1` version `1.0.0` | Implemented 2026-07-23: six published bundled items approved by 于永, stable IDs, simplified/traditional targets and answers, exact neutral fallbacks, release validation in local command and CI | Unpublish humor variants      |
 
 ### 8.0 — Full V1 regression and release preparation
 

@@ -53,6 +53,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Validate curriculum content
+        run: pnpm content:validate
+
       - name: Validate database files
         run: pnpm db:validate:static
 

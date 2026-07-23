@@ -24,3 +24,8 @@ const supported = isCurriculumCompatible(appVersion, curriculum.minimumAppVersio
 
 The approved Task 5.1P fixture is exported as `approvedPinyinContentFixture` and uses
 `pinyin-content-v1`.
+
+The approved Task 7.3H fixture is exported as `approvedHumorContentFixture` and uses
+`humor-content-v1`. Its six bundled items preserve simplified/traditional learning targets,
+answers, and neutral fallbacks. The published editorial review is attributed to 于永 at
+`2026-07-23T20:55:17.680Z`.

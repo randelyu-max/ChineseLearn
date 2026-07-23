@@ -15,8 +15,8 @@ message. Run the synthetic example with:
 pnpm content:validate
 ```
 
-With no file argument, the command validates both the synthetic curriculum package and the
-approved Pinyin content fixture.
+With no file argument, the command validates the synthetic curriculum package, approved Pinyin
+content fixture, and published human-editorial humor fixture.
 
 An external JSON file can be checked with the package command:
 

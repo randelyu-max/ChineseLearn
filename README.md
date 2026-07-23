@@ -42,6 +42,11 @@ neutral fallback, `light` cannot select playful variants, and a missing offline 
 closed to neutral. Preference updates continue through the authenticated profile endpoint and do
 not create a personalization profile.
 
+Task 7.3H publishes `humor-content-v1` version `1.0.0`: six bundled, human-edited items approved by
+于永, with stable IDs, simplified/traditional targets and answers, and exact neutral fallbacks.
+The default content command and CI now validate the published package; no text is generated or
+rewritten at runtime.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)
