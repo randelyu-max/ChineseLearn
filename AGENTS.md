@@ -106,5 +106,6 @@ rewrite unrelated files.
 Report changed files, actual commands and results, privacy/security/learning implications,
 remaining risks, and rollback instructions. Task 4.3R established bounded, session-authenticated
 attempt batches, server-side answer evaluation, immutable/idempotent attempts, authoritative
-skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. The next eligible
-task is 5.2P; do not silently combine it with a completed task.
+skill/review replay, cross-user RLS coverage, and mobile outbox synchronization. Task 5.2P added
+the deterministic, accessible, bundled-audio `audio_to_pinyin` exercise. The next eligible task is
+5.3P; do not silently combine it with a completed task.
