@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 5.2P offline `audio_to_pinyin` exercise implemented; 5.3P is next.
+Status: Task 5.3P offline `pinyin_to_audio` exercise implemented; 5.4P is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -187,7 +187,7 @@ preserving previous Pinyin tasks.
 | --------------- | ------------------------------------------------------------ | -------------------------- | ------------------- | ------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
 | 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI                      | 3.5R contract       | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture |
 | 5.2P (complete) | `audio_to_pinyin`                                            | No speech upload           | 5.1P                | mobile feature/tests           | Attempts only later      | Implemented 2026-07-23: deterministic tone distractors, bundled/replayable MP3, supportive retry, responsive and screen-reader semantics |
-| 5.3P            | `pinyin_to_audio`                                            | No pronunciation scoring   | 5.2P                | mobile feature/tests           | None                     | Audio preload/replay/error; correct clip stable                                                                                         |
+| 5.3P (complete) | `pinyin_to_audio`                                            | No pronunciation scoring   | 5.2P                | mobile feature/tests           | None                     | Implemented 2026-07-23: module-scope preload, per-clip replay/error recovery, bundled assets, stable correct clip, accessible controls   |
 | 5.4P            | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Tone variants and ambiguity; target mapping correct                                                                                     |
 | 5.5P            | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Polyphone context and hints; accepted reading explicit                                                                                  |
 | 5.6P            | `tone_choice`                                                | No dialect judgment        | 5.1P                | mobile feature/tests           | None                     | Tone/neutral-tone table tests; no shaming copy                                                                                          |
