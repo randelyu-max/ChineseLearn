@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 6.3W deterministic own-name style previews implemented; 6.4W is next.
+Status: Task 6.4W local save and self-consistency feedback implemented; 7.1H is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -205,7 +205,7 @@ never call AI. Each task needs unit, local persistence, accessibility, and priva
 | 6.1W (complete) | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload                        | 2.4R       | mobile writing/storage   | Local strokes                      | Implemented 2026-07-23: normalized trace, resize-safe SVG, undo/clear/replay, per-user Web/SQLite local drafts, bounded dense input | Remove route/local table          |
 | 6.2W (complete) | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Implemented 2026-07-23: licensed offline 王家豪 fixture, ordered start/direction guide, observe/trace/free modes, unsupported fallback | Remove lesson layer/assets        |
 | 6.3W (complete) | Deterministic clear/compact/leaning/flowing styles  | No AI or celebrity imitation             | 6.2W       | pure transform module/UI | Selected style metadata            | Implemented 2026-07-23: versioned pure transforms, reproducible bounded output, preserved stroke/timing order, own-name-only preview | Remove transforms/style field     |
-| 6.4W | Local save and self-consistency feedback            | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API  | Server metadata/count/summary only | Assert no raw points/image payload; repeatability feedback | Disable sync, retain local export |
+| 6.4W (complete) | Local save and self-consistency feedback            | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API  | Server metadata/count/summary only | Implemented 2026-07-23: local rolling baseline and persistent raw-free outbox, deterministic supportive feedback, idempotent RLS metadata API, trigger-owned summary | Disable sync, retain local export |
 
 ## Humor task series
 

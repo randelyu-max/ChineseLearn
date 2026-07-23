@@ -1,5 +1,8 @@
 export * from './model';
+export * from './consistency';
 export * from './lesson-model';
+export * from './signature-sync';
+export * from './signature-sync-with-api';
 export { getWritingDraftStore } from './store';
 export * from './storage-model';
 export * from './signature-transform';

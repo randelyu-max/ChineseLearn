@@ -7,6 +7,7 @@ import type { ServerConfig } from './config.js';
 import { attemptsBatchRoutes } from './routes/attempts-batch.js';
 import { profileRoutes } from './routes/profile.js';
 import { sessionPlanRoutes } from './routes/session-plan.js';
+import { signaturePracticeRoutes } from './routes/signature-practice.js';
 
 export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool) {
   const app = new Hono();
@@ -24,6 +25,7 @@ export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool
   app.route('/api/profile', profileRoutes(auth, pool));
   app.route('/api/attempts-batch', attemptsBatchRoutes(auth, pool));
   app.route('/api/session-plan', sessionPlanRoutes(auth, pool));
+  app.route('/api/signature-practice', signaturePracticeRoutes(auth, pool));
   app.notFound((context) => context.json({ code: 'not_found' }, 404));
   return app;
 }

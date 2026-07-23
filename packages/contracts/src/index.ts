@@ -5,5 +5,6 @@ export * from './ids.ts';
 export * from './pinyin.ts';
 export * from './response.ts';
 export * from './session-plan.ts';
+export * from './signature.ts';
 export * from './time.ts';
 export * from './version.ts';

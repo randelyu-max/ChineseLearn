@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 
 import {
+  parseWritingDraftRecord,
   WritingDraftRecordSchema,
   type WritingDraftRecord,
   type WritingDraftStore,
@@ -27,7 +28,7 @@ async function initialize(database: SQLite.SQLiteDatabase): Promise<void> {
 function parseRow(row: WritingDraftRow | null): WritingDraftRecord | null {
   if (!row) return null;
   try {
-    const parsed = WritingDraftRecordSchema.parse(JSON.parse(row.payload_json));
+    const parsed = parseWritingDraftRecord(JSON.parse(row.payload_json));
     return parsed.ownerUserId === row.owner_user_id ? parsed : null;
   } catch {
     return null;

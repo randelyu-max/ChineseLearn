@@ -25,6 +25,11 @@ Task 3.5R adds `diagnostic-v1`, a pure and reproducible six-axis Pinyin/Hanzi di
 `packages/learning-engine`. It uses injected clocks and seeded randomness, returns neutral
 machine-code recommendations, and has no database, network, UI, or AI dependency.
 
+Tasks 6.1W–6.4W provide an own-name normalized writing canvas, reviewed offline stroke order,
+four deterministic styles, and local self-consistency feedback. Raw points and images stay in
+the per-user Web/SQLite draft. The API accepts only strict project metadata and immutable derived
+metric events; PostgreSQL produces the authoritative practice count and summary under forced RLS.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)

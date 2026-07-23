@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { AttemptsBatchRequestSchema } from '@hanziquest/contracts';
+import {
+  AttemptsBatchRequestSchema,
+  SignaturePracticeMetricEventSchema,
+  SignatureProjectInputSchema,
+} from '@hanziquest/contracts';
 import { Pool, type PoolClient } from 'pg';
 
 import {
@@ -8,6 +12,7 @@ import {
   loadAuthoritativePlanningState,
 } from '../session-plan-service.js';
 import { processAttemptsBatch } from '../attempts-batch-service.js';
+import { recordSignaturePractice, upsertSignatureProject } from '../signature-practice-service.js';
 import { withUserTransaction } from './pool.js';
 
 const databaseUrl = process.env.DATABASE_URL?.trim();
@@ -21,6 +26,7 @@ async function count(client: PoolClient, table: string): Promise<number> {
     'review_schedule',
     'reward_balances',
     'signature_practice_summaries',
+    'signature_practice_events',
     'signature_projects',
     'skill_states',
   ]);
@@ -41,6 +47,9 @@ const clientSessionA = randomUUID();
 const attemptB = randomUUID();
 const conceptB = randomUUID();
 const signatureB = randomUUID();
+const signatureEventB = randomUUID();
+const signatureA = randomUUID();
+const signatureEventA = randomUUID();
 const world = randomUUID();
 const unit = randomUUID();
 const lesson = randomUUID();
@@ -153,6 +162,12 @@ try {
        user_id, signature_project_id, practice_count
      ) values ($1, $2, 1)`,
     [userB, signatureB],
+  );
+  await client.query(
+    `insert into public.signature_practice_events (
+       id, user_id, signature_project_id, idempotency_key, algorithm_version, occurred_at
+     ) values ($1, $2, $3, $4, 'signature-consistency-v1', now())`,
+    [signatureEventB, userB, signatureB, `signature-practice:${signatureEventB}`],
   );
   await client.query(`insert into public.reward_balances (user_id) values ($1)`, [userB]);
 
@@ -277,6 +292,122 @@ try {
     'User A must read only their own session',
   );
 
+  const ownSignature = await upsertSignatureProject(
+    client,
+    userA,
+    SignatureProjectInputSchema.parse({
+      schemaVersion: 'signature-project-request-v1',
+      chineseName: '王安家',
+      projectId: signatureA,
+      selectedStyle: 'flowing',
+    }),
+  );
+  assert.equal(ownSignature?.practiceCount, 0, 'A new own-name project starts with no practice');
+  const baselineEvent = SignaturePracticeMetricEventSchema.parse({
+    schemaVersion: 'signature-practice-request-v1',
+    algorithmVersion: 'signature-consistency-v1',
+    eventId: signatureEventA,
+    idempotencyKey: `signature-practice:${signatureEventA}`,
+    metrics: null,
+    occurredAt: new Date().toISOString(),
+    projectId: signatureA,
+  });
+  const baselineResult = await recordSignaturePractice(client, userA, baselineEvent);
+  assert.equal(baselineResult.status, 'accepted');
+  assert.equal(
+    baselineResult.status === 'accepted' ? baselineResult.summary.practiceCount : -1,
+    1,
+    'Server trigger must count a raw-free baseline event',
+  );
+  assert.deepEqual(
+    baselineResult.status === 'accepted' ? baselineResult.summary.scores : null,
+    { direction: null, proportion: null, rhythm: null, structure: null },
+    'A baseline event must not invent consistency scores',
+  );
+  const duplicateSignature = await recordSignaturePractice(client, userA, baselineEvent);
+  assert.equal(duplicateSignature.status, 'duplicate');
+  const comparedEvent = SignaturePracticeMetricEventSchema.parse({
+    ...baselineEvent,
+    eventId: randomUUID(),
+    idempotencyKey: `signature-practice:${randomUUID()}`,
+    metrics: { direction: 0.81234, proportion: 0.72345, rhythm: 0.63456, structure: 0.94567 },
+  });
+  const comparedResult = await recordSignaturePractice(client, userA, comparedEvent);
+  assert.equal(comparedResult.status, 'accepted');
+  assert.equal(
+    comparedResult.status === 'accepted' ? comparedResult.summary.practiceCount : -1,
+    2,
+    'A second immutable event must increment the server count once',
+  );
+  assert.deepEqual(
+    comparedResult.status === 'accepted' ? comparedResult.summary.scores : null,
+    { direction: 0.8123, proportion: 0.7235, rhythm: 0.6346, structure: 0.9457 },
+    'Null baseline metrics must not dilute the canonical four-decimal consistency average',
+  );
+  assert.equal(
+    (await recordSignaturePractice(client, userA, comparedEvent)).status,
+    'duplicate',
+    'A metric event with more than four input decimals must still replay idempotently',
+  );
+  assert.equal(
+    (
+      await recordSignaturePractice(client, userA, {
+        ...baselineEvent,
+        metrics: { direction: 0, proportion: 0, rhythm: 0, structure: 0 },
+      })
+    ).status,
+    'conflict',
+    'An idempotency key cannot be replayed with different metadata',
+  );
+  assert.equal(
+    (await recordSignaturePractice(client, userA, { ...baselineEvent, projectId: signatureB }))
+      .status,
+    'project_not_found',
+    'RLS must hide another user signature project from the service',
+  );
+  assert.equal(
+    await count(client, 'signature_practice_events'),
+    2,
+    'User A must see only their two immutable metadata events',
+  );
+  await client.query('savepoint forged_signature_event_owner');
+  let forgedSignatureEventOwnerRejected = false;
+  try {
+    const forgedEvent = randomUUID();
+    await client.query(
+      `insert into public.signature_practice_events (
+         id, user_id, signature_project_id, idempotency_key, algorithm_version, occurred_at
+       ) values ($1, $2, $3, $4, 'signature-consistency-v1', now())`,
+      [forgedEvent, userB, signatureB, `signature-practice:${forgedEvent}`],
+    );
+  } catch {
+    forgedSignatureEventOwnerRejected = true;
+  }
+  await client.query('rollback to savepoint forged_signature_event_owner');
+  assert.equal(
+    forgedSignatureEventOwnerRejected,
+    true,
+    'RLS must reject a forged user_id on signature metadata insert',
+  );
+  await client.query('savepoint direct_summary_mutation');
+  let summaryMutationRejected = false;
+  try {
+    await client.query(
+      `update public.signature_practice_summaries
+       set practice_count = 999
+       where user_id = $1 and signature_project_id = $2`,
+      [userA, signatureA],
+    );
+  } catch {
+    summaryMutationRejected = true;
+  }
+  await client.query('rollback to savepoint direct_summary_mutation');
+  assert.equal(
+    summaryMutationRejected,
+    true,
+    'The application role must not directly modify server-authoritative summaries',
+  );
+
   const offlineEvent = randomUUID();
   const attemptsRequest = AttemptsBatchRequestSchema.parse({
     schemaVersion: 'attempts-batch-request-v1',
@@ -393,9 +524,28 @@ try {
   assert.equal(forgedSessionOwnerRejected, true, 'Forged session ownership must be rejected');
 
   assert.equal(await count(client, 'profiles'), 1, 'User A must read their profile');
-  for (const table of ['signature_projects', 'signature_practice_summaries', 'reward_balances']) {
-    assert.equal(await count(client, table), 0, `User A must not read User B ${table}`);
+  for (const table of [
+    'signature_projects',
+    'signature_practice_summaries',
+    'signature_practice_events',
+  ]) {
+    const rows = await client.query(`select user_id from public.${table} where user_id = $1`, [
+      userB,
+    ]);
+    assert.equal(rows.rowCount, 0, `User A must not read User B ${table}`);
   }
+  assert.equal(await count(client, 'signature_projects'), 1, 'User A must read their own project');
+  assert.equal(
+    await count(client, 'signature_practice_summaries'),
+    1,
+    'User A must read their own server summary',
+  );
+  assert.equal(
+    await count(client, 'signature_practice_events'),
+    2,
+    'User A must read only their own immutable metadata events',
+  );
+  assert.equal(await count(client, 'reward_balances'), 0, 'User A must not read User B rewards');
   for (const table of ['attempts', 'skill_states', 'review_schedule']) {
     const rows = await client.query(`select user_id from public.${table} where user_id = $1`, [
       userB,
@@ -437,6 +587,11 @@ try {
     await count(client, 'learning_sessions'),
     0,
     'Unauthenticated access must return no sessions',
+  );
+  assert.equal(
+    await count(client, 'signature_practice_events'),
+    0,
+    'Unauthenticated access must return no signature metadata events',
   );
 
   await client.query('commit');

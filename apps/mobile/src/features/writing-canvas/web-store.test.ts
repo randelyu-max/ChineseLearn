@@ -66,4 +66,29 @@ describe('web writing draft store', () => {
     );
     expect(await createWebWritingDraftStore(storage).load('user-a')).toBeNull();
   });
+
+  it('upgrades an existing V1 draft in place when it is read', async () => {
+    const storage = createStorage();
+    storage.setItem(
+      WRITING_WEB_STORAGE_KEY,
+      JSON.stringify({
+        schemaVersion: 1,
+        drafts: {
+          'user-a': {
+            schemaVersion: 'writing-draft-v1',
+            modelVersion: 'writing-canvas-v1',
+            ownerUserId: 'user-a',
+            chineseName: '王',
+            strokes: [{ points: [{ timestamp: 1, x: 0.5, y: 0.5 }] }],
+            updatedAt: '2026-07-23T12:00:00.000Z',
+          },
+        },
+      }),
+    );
+    expect(await createWebWritingDraftStore(storage).load('user-a')).toMatchObject({
+      schemaVersion: 'writing-draft-v2',
+      chineseName: '王',
+      selectedStyle: 'clear',
+    });
+  });
 });

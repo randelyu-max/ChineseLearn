@@ -1,4 +1,5 @@
 import {
+  parseWritingDraftRecord,
   WritingDraftRecordSchema,
   type WritingDraftRecord,
   type WritingDraftStore,
@@ -35,9 +36,13 @@ export function createWebWritingDraftStore(storage: StorageLike): WritingDraftSt
       }
       const drafts: Record<string, WritingDraftRecord> = {};
       for (const [ownerUserId, candidate] of Object.entries(input.drafts)) {
-        const parsed = WritingDraftRecordSchema.safeParse(candidate);
-        if (parsed.success && parsed.data.ownerUserId === ownerUserId) {
-          drafts[ownerUserId] = parsed.data;
+        try {
+          const parsed = parseWritingDraftRecord(candidate);
+          if (parsed.ownerUserId === ownerUserId) {
+            drafts[ownerUserId] = parsed;
+          }
+        } catch {
+          // Ignore only this corrupt entry so another user's local draft remains available.
         }
       }
       return { drafts, schemaVersion: 1 };

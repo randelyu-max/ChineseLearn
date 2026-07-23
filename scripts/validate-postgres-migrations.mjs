@@ -46,6 +46,7 @@ const privateTables = [
   'confusion_stats',
   'signature_projects',
   'signature_practice_summaries',
+  'signature_practice_events',
   'reward_balances',
 ];
 for (const table of privateTables) {
