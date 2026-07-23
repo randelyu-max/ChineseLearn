@@ -30,6 +30,12 @@ four deterministic styles, and local self-consistency feedback. Raw points and i
 the per-user Web/SQLite draft. The API accepts only strict project metadata and immutable derived
 metric events; PostgreSQL produces the authoritative practice count and summary under forced RLS.
 
+Task 7.1H adds the versioned `humor-content-v1` contract and a pure static-content validator for
+six approved humor types. It requires bundled human-editorial text, an equivalent neutral fallback,
+unchanged learning targets and answers, release review, supportive language, and an explicit
+mnemonic-not-etymology disclosure for memory scenes. Actual reviewed humor content remains a later
+task.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)

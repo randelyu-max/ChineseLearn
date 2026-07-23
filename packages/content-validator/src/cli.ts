@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 
 import { approvedPinyinContentFixture, homeDemoCurriculumPackage } from '@hanziquest/curriculum';
 
+import { formatHumorValidationIssue, validateHumorContent } from './humor-validator.ts';
 import { formatPinyinValidationIssue, validatePinyinContent } from './pinyin-validator.ts';
 import { formatValidationIssue, validateCurriculumContent } from './validator.ts';
 
@@ -53,6 +54,24 @@ async function main(): Promise<void> {
       return;
     }
     console.log(`Pinyin content validation passed: ${loaded.source}`);
+    return;
+  }
+
+  if (
+    typeof loaded.input === 'object' &&
+    loaded.input !== null &&
+    'schemaVersion' in loaded.input &&
+    loaded.input.schemaVersion === 'humor-content-v1'
+  ) {
+    const result = validateHumorContent(loaded.input, {
+      source: loaded.source,
+    });
+    if (!result.valid) {
+      result.errors.forEach((issue) => console.error(formatHumorValidationIssue(issue)));
+      process.exitCode = 1;
+      return;
+    }
+    console.log(`Humor content validation passed: ${loaded.source}`);
     return;
   }
 

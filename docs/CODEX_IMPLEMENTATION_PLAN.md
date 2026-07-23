@@ -1,6 +1,6 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 6.4W local save and self-consistency feedback implemented; 7.1H is next.
+Status: Task 7.1H static humor schema and validator implemented; 7.2H is next.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -215,7 +215,7 @@ answers.
 
 | Task | 目标                                              | 非目标                       | 依赖       | 文件范围             | 数据变化                | 测试要求与验收                                         | 回滚                          |
 | ---- | ------------------------------------------------- | ---------------------------- | ---------- | -------------------- | ----------------------- | ------------------------------------------------------ | ----------------------------- |
-| 7.1H | Humor schema and validator for six approved types | No content generation        | 5.1P       | curriculum/validator | Content metadata        | Same target/answer, fallback, safety checks            | Remove additive fields/rules  |
+| 7.1H (complete) | Humor schema and validator for six approved types | No content generation        | 5.1P       | curriculum/validator | Content metadata        | Implemented 2026-07-23: versioned bundled human-editorial schema, six types, exact target/answer and neutral fallback checks, release review and deterministic safety gates | Remove additive fields/rules  |
 | 7.2H | Profile humor preference                          | No personalization profiling | 7.1H, 2.4R | profile/mobile       | `humor_preference`      | Default/update/offline selection; `off` always neutral | Default to off/remove control |
 | 7.3H | Human-authored reviewed humor content             | No AI rewrite                | 7.2H       | curriculum/assets    | Static content versions | Editorial status, locales, targets, fallbacks          | Unpublish humor variants      |
 
