@@ -1,0 +1,37 @@
+{
+  "name": "hanziquest",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=22.13.0 <25",
+    "pnpm": "11.15.1"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:mobile": "pnpm --filter @hanziquest/mobile start",
+    "dev:admin": "pnpm --filter @hanziquest/admin dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck && tsc -p supabase/functions/tsconfig.json --noEmit",
+    "test": "turbo run test",
+    "build": "turbo run build",
+    "content:validate": "pnpm --filter @hanziquest/content-validator validate:content",
+    "db:validate:static": "node scripts/validate-supabase-migrations.mjs",
+    "db:test": "supabase test db",
+    "supabase": "supabase",
+    "validate": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm db:validate:static && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.39.5",
+    "eslint": "9.39.5",
+    "globals": "17.7.0",
+    "prettier": "3.9.6",
+    "supabase": "2.109.1",
+    "turbo": "2.10.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.65.0",
+    "vitest": "4.1.10"
+  }
+}

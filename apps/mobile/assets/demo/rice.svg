@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-labelledby="title description">
+  <title id="title">一碗米饭</title>
+  <desc id="description">蓝色碗里盛着白米饭</desc>
+  <rect width="320" height="240" rx="28" fill="#FFF3DD"/>
+  <path d="M84 128c9-52 143-52 152 0" fill="#FFFDF7" stroke="#68584B" stroke-width="9"/>
+  <path d="M67 126h186c-5 67-40 96-93 96s-88-29-93-96Z" fill="#6FAFE4" stroke="#264C6B" stroke-linejoin="round" stroke-width="10"/>
+  <path d="M116 158h88" stroke="#DDEEFF" stroke-linecap="round" stroke-width="10"/>
+</svg>

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240" role="img" aria-labelledby="title description">
+  <title id="title">一座温暖的家</title>
+  <desc id="description">黄色墙壁、红色屋顶和蓝色门的小房子</desc>
+  <rect width="320" height="240" rx="28" fill="#E7F5EF"/>
+  <path d="M42 116 160 32l118 84" fill="#EF6A62" stroke="#74372F" stroke-linejoin="round" stroke-width="10"/>
+  <path d="M70 108h180v108H70z" fill="#FFD978" stroke="#74372F" stroke-width="10"/>
+  <path d="M137 145h46v71h-46z" fill="#3E7FB1" stroke="#264C6B" stroke-width="8"/>
+  <circle cx="171" cy="181" r="4" fill="#FFD978"/>
+  <path d="M91 137h31v31H91zm107 0h31v31h-31z" fill="#BDE3F4" stroke="#264C6B" stroke-width="7"/>
+</svg>

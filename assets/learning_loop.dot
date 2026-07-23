@@ -1,0 +1,13 @@
+digraph G {
+  rankdir=LR;
+  graph [fontname="Noto Sans CJK SC", nodesep=0.45, ranksep=0.7, pad=0.25];
+  node [shape=box, style="rounded", fontname="Noto Sans CJK SC", fontsize=11];
+  edge [fontname="Noto Sans CJK SC", fontsize=9];
+  a [label="复习快忘的字"];
+  b [label="学习 2–4 个新字"];
+  c [label="词语与句子迁移"];
+  d [label="短故事挑战"];
+  e [label="奖励与建设世界"];
+  f [label="更新能力画像\n安排下次复习"];
+  a -> b -> c -> d -> e -> f -> a;
+}

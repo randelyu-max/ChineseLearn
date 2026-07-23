@@ -1,0 +1,17 @@
+node_modules/
+.pnpm-store/
+.turbo/
+**/.expo/
+**/.next/
+**/coverage/
+**/dist/
+*.tsbuildinfo
+
+.env
+.env.*
+!.env.example
+
+apps/mobile/expo-env.d.ts
+apps/mobile/.web-build/
+supabase/.branches/
+supabase/.temp/
