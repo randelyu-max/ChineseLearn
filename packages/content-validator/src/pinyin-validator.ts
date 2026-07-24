@@ -10,6 +10,9 @@ export const PINYIN_VALIDATION_ERROR_CODES = [
   'PINYIN_NORMALIZATION_MISMATCH',
   'PINYIN_TONE_TABLE_INCOMPLETE',
   'PINYIN_ASSET_NOT_AUDIO',
+  'PINYIN_AUDIO_HASH_REQUIRED',
+  'PINYIN_AUDIO_LOCALE_REQUIRED',
+  'PINYIN_AUDIO_LICENSE_REQUIRED',
 ] as const;
 
 export type PinyinValidationErrorCode = (typeof PINYIN_VALIDATION_ERROR_CODES)[number];
@@ -242,6 +245,39 @@ function checkSyllables(content: PinyinContentPackage, addIssue: AddIssue): void
   });
 }
 
+function checkAudioMetadata(content: PinyinContentPackage, addIssue: AddIssue): void {
+  content.assets.forEach((asset, index) => {
+    if (asset.kind !== 'audio') return;
+    if (asset.delivery === 'bundled_file' && !asset.sha256) {
+      addIssue(
+        'PINYIN_AUDIO_HASH_REQUIRED',
+        `Bundled Pinyin audio asset ${asset.id} requires a SHA-256 digest.`,
+        `assets.${index}.sha256`,
+        asset.id,
+      );
+    }
+    if (!asset.locale?.match(/^zh(?:-|$)/i)) {
+      addIssue(
+        'PINYIN_AUDIO_LOCALE_REQUIRED',
+        `Pinyin audio asset ${asset.id} requires an explicit Chinese locale.`,
+        `assets.${index}.locale`,
+        asset.id,
+      );
+    }
+    if (
+      ['none', 'tbd', 'unknown'].includes(asset.licenseIdentifier.trim().toLowerCase()) ||
+      /^(?:placeholder|todo):/i.test(asset.sourceReference.trim())
+    ) {
+      addIssue(
+        'PINYIN_AUDIO_LICENSE_REQUIRED',
+        `Pinyin audio asset ${asset.id} requires a real license and source reference.`,
+        `assets.${index}`,
+        asset.id,
+      );
+    }
+  });
+}
+
 export function validatePinyinContent(
   input: unknown,
   options: { source?: string } = {},
@@ -275,6 +311,7 @@ export function validatePinyinContent(
   checkUniqueValues(parsed.data, addIssue);
   checkToneTable(parsed.data, addIssue);
   checkSyllables(parsed.data, addIssue);
+  checkAudioMetadata(parsed.data, addIssue);
 
   return errors.length === 0
     ? { valid: true, data: parsed.data, errors: [] }

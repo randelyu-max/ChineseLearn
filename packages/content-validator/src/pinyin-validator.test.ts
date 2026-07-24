@@ -58,4 +58,18 @@ describe('validatePinyinContent', () => {
     duplicateTone.tones[4]!.tone = 4;
     expect(errorCodes(duplicateTone)).toContain('PINYIN_TONE_TABLE_INCOMPLETE');
   });
+
+  it('requires a digest and Chinese locale for bundled Pinyin audio', () => {
+    const withoutHash = copyFixture();
+    delete withoutHash.assets[0]!.sha256;
+    expect(errorCodes(withoutHash)).toContain('PINYIN_AUDIO_HASH_REQUIRED');
+
+    const withoutLocale = copyFixture();
+    delete withoutLocale.assets[0]!.locale;
+    expect(errorCodes(withoutLocale)).toContain('PINYIN_AUDIO_LOCALE_REQUIRED');
+
+    const placeholderLicense = copyFixture();
+    placeholderLicense.assets[0]!.licenseIdentifier = 'TBD';
+    expect(errorCodes(placeholderLicense)).toContain('PINYIN_AUDIO_LICENSE_REQUIRED');
+  });
 });

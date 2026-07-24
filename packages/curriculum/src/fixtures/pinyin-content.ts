@@ -21,6 +21,12 @@ const finalIds = {
   üe: id('106'),
 } as const;
 
+export const approvedPinyinAudioAssetIds = {
+  ma2: id('401'),
+  ma3: id('402'),
+  ma4: id('403'),
+} as const;
+
 export const approvedPinyinContentFixture: PinyinContentPackage = {
   schemaVersion: 'pinyin-content-v1',
   contentVersion: '1.0.0',
@@ -230,6 +236,74 @@ export const approvedPinyinContentFixture: PinyinContentPackage = {
       tone: 1,
       status: 'approved',
     },
+    {
+      id: id('209'),
+      numbered: 'ma2',
+      display: 'má',
+      initialId: initialIds.m,
+      finalId: finalIds.a,
+      tone: 2,
+      audioAssetId: approvedPinyinAudioAssetIds.ma2,
+      status: 'approved',
+    },
+    {
+      id: id('210'),
+      numbered: 'ma3',
+      display: 'mǎ',
+      initialId: initialIds.m,
+      finalId: finalIds.a,
+      tone: 3,
+      audioAssetId: approvedPinyinAudioAssetIds.ma3,
+      status: 'approved',
+    },
+    {
+      id: id('211'),
+      numbered: 'ma4',
+      display: 'mà',
+      initialId: initialIds.m,
+      finalId: finalIds.a,
+      tone: 4,
+      audioAssetId: approvedPinyinAudioAssetIds.ma4,
+      status: 'approved',
+    },
   ],
-  assets: [],
+  assets: [
+    {
+      id: approvedPinyinAudioAssetIds.ma2,
+      kind: 'audio',
+      delivery: 'bundled_file',
+      localPath: 'apps/mobile/assets/audio/pinyin/ma2.mp3',
+      sha256: 'a82bec63b094466b62f7378db8f76ca2f857a9bfc8e25ae2484ce1a1a66880fc',
+      locale: 'zh-CN',
+      licenseIdentifier: 'CC-BY-SA-3.0-US',
+      sourceName: 'Shtooka Chinese audio collection — Yue Tan',
+      sourceReference: 'https://commons.wikimedia.org/wiki/File:Zh-ma2.ogg',
+      attribution: 'Yue Tan / Shtooka; transcoded from OGG to MP3; CC BY-SA 3.0 US.',
+    },
+    {
+      id: approvedPinyinAudioAssetIds.ma3,
+      kind: 'audio',
+      delivery: 'bundled_file',
+      localPath: 'apps/mobile/assets/audio/pinyin/ma3.mp3',
+      sha256: 'f1d86a44b8efab9ed6ed7d2d9762ef5f4cec81b016802d44a36545701f74991e',
+      locale: 'zh-CN',
+      licenseIdentifier: 'CC-BY-2.0-FR',
+      sourceName: 'Shtooka Chinese audio collection — Wei Gao / Vion Nicolas',
+      sourceReference: 'https://commons.wikimedia.org/wiki/File:Zh-ma3.ogg',
+      attribution:
+        'Wei Gao and Vion Nicolas / Shtooka; transcoded from OGG to MP3; CC BY 2.0 France.',
+    },
+    {
+      id: approvedPinyinAudioAssetIds.ma4,
+      kind: 'audio',
+      delivery: 'bundled_file',
+      localPath: 'apps/mobile/assets/audio/pinyin/ma4.mp3',
+      sha256: 'f8b2514cd5488c4de39ed9daff8a2c1e8fdefa29c619e99d318441e4329ab02b',
+      locale: 'zh-CN',
+      licenseIdentifier: 'CC-BY-SA-3.0-US',
+      sourceName: 'Shtooka Chinese audio collection — Yue Tan',
+      sourceReference: 'https://commons.wikimedia.org/wiki/File:Zh-ma4.ogg',
+      attribution: 'Yue Tan / Shtooka; transcoded from OGG to MP3; CC BY-SA 3.0 US.',
+    },
+  ],
 };

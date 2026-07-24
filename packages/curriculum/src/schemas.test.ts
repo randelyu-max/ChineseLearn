@@ -85,4 +85,13 @@ describe('curriculum domain schemas', () => {
       false,
     );
   });
+
+  it('keeps canonical and surface Pinyin explicit instead of guessing tone sandhi', () => {
+    const word = demoCurriculumPackage.words[0]!;
+    const sentence = demoCurriculumPackage.sentences[0]!;
+    expect(word.canonicalPinyin).toBeTruthy();
+    expect(word.surfacePinyin).toBeUndefined();
+    expect(sentence.canonicalPinyin).toBeTruthy();
+    expect(sentence.surfacePinyin).toBeUndefined();
+  });
 });

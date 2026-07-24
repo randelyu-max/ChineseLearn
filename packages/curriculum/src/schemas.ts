@@ -21,6 +21,10 @@ export const ContentAssetSchema = z
     kind: z.enum(['audio', 'image']),
     delivery: z.enum(['bundled_file', 'system_tts']),
     localPath: z.string().trim().min(1).max(240).optional(),
+    sha256: z
+      .string()
+      .regex(/^[a-f0-9]{64}$/)
+      .optional(),
     speechText: z.string().trim().min(1).max(120).optional(),
     locale: z.string().trim().min(2).max(20).optional(),
     licenseIdentifier: z.string().trim().min(1).max(80),
@@ -88,7 +92,8 @@ export const WordSchema = z
   .object({
     id: ContentIdSchema,
     text: ScriptTextSchema,
-    pinyin: NonEmptyTextSchema.max(160),
+    canonicalPinyin: NonEmptyTextSchema.max(160),
+    surfacePinyin: NonEmptyTextSchema.max(160).optional(),
     meaningZh: NonEmptyTextSchema,
     meaningEn: NonEmptyTextSchema,
     characterConceptIds: z.array(ContentIdSchema).min(1),
@@ -105,7 +110,8 @@ export const SentenceSchema = z
   .object({
     id: ContentIdSchema,
     text: ScriptTextSchema,
-    pinyin: NonEmptyTextSchema.max(300),
+    canonicalPinyin: NonEmptyTextSchema.max(300),
+    surfacePinyin: NonEmptyTextSchema.max(300).optional(),
     meaningEn: NonEmptyTextSchema,
     characterConceptIds: z.array(ContentIdSchema).min(1),
     targetConceptIds: z.array(ContentIdSchema).min(1),

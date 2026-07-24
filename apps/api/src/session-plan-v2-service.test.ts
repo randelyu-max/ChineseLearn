@@ -6,6 +6,7 @@ import {
   buildMaterializedSessionPlanV2,
   confidenceClosingMaterial,
   contentSha256,
+  PINYIN_SESSION_V2_CAPABILITY,
   SessionPlanV2ServiceError,
   type AuthoritativePlanningStateV2,
   type MaterializableCandidate,
@@ -150,6 +151,7 @@ describe('Session Plan V2 materializer', () => {
   });
 
   it('emits only the four server-capable Hanzi exercise types', () => {
+    expect(PINYIN_SESSION_V2_CAPABILITY).toEqual({ attempts: false, planning: false });
     const snapshot = buildMaterializedSessionPlanV2(
       request(),
       state(),

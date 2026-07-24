@@ -25,6 +25,11 @@ import type { PoolClient } from 'pg';
 export const SESSION_PLAN_V2_MATERIALIZER_VERSION =
   'pinyin-session-planner-v1+session-materializer-v2';
 
+export const PINYIN_SESSION_V2_CAPABILITY = Object.freeze({
+  attempts: false,
+  planning: false,
+});
+
 const PINYIN_EXERCISE_TYPES = new Set([
   'audio_to_pinyin',
   'pinyin_to_audio',
@@ -299,7 +304,13 @@ function supportedExercises(contentSpec: unknown): readonly LearningExercise[] {
       candidate && typeof candidate === 'object'
         ? (candidate as Record<string, unknown>).type
         : undefined;
-    if (typeof type === 'string' && PINYIN_EXERCISE_TYPES.has(type)) continue;
+    if (
+      typeof type === 'string' &&
+      PINYIN_EXERCISE_TYPES.has(type) &&
+      !PINYIN_SESSION_V2_CAPABILITY.planning
+    ) {
+      continue;
+    }
     if (
       !['audio_to_glyph', 'glyph_to_image', 'word_build', 'sentence_order'].includes(String(type))
     ) {

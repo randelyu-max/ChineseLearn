@@ -99,3 +99,13 @@
   写入 Attempt 与 Session 检查点，再进行可恢复 Outbox 同步；完成时先同步再请求服务器终态，
   并隔离开发演示路由。专项测试、真实 PostgreSQL 集成、全仓门禁和 23 路由 Expo 导出通过。
 - 下一项：`5.9P-A — 拼音持久化领域模型`。
+
+## Task 5.9P-A completion checkpoint
+
+Task 5.9P-A completed on 2026-07-24. It added the formal `pinyin_concepts` persistence domain,
+stable concept mappings, three licensed audio assets with hash/locale/attribution validation,
+an idempotent approved-release import, and canonical/surface Pinyin reading contracts. Migration,
+RLS, invalid-combination, unpublished-filter, and PostgreSQL 17 tests passed. Pinyin planning and
+Attempts capabilities remain explicitly disabled.
+
+The next unique task is `5.9P-B — Pinyin server scoring and Evidence`.

@@ -11,12 +11,15 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "tsx src/db/migrate.ts",
+    "db:import:pinyin": "tsx src/db/import-pinyin-content.ts",
     "db:test": "tsx src/db/test-database.ts",
+    "db:test:pinyin": "tsx src/db/test-pinyin-domain.ts",
     "db:test:attempt-backfill": "tsx src/db/test-attempt-evidence-backfill.ts"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.24",
     "@hanziquest/contracts": "workspace:*",
+    "@hanziquest/content-validator": "workspace:*",
     "@hanziquest/curriculum": "workspace:*",
     "@hanziquest/learning-engine": "workspace:*",
     "@hono/node-server": "2.0.11",

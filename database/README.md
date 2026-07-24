@@ -12,6 +12,18 @@ corepack pnpm db:migrate
 corepack pnpm db:test
 ```
 
+Task 5.9P-A adds migration `0011_pinyin_persistence_domain.sql`. After migrations, import the
+approved, versioned Pinyin release with:
+
+```powershell
+corepack pnpm db:import:pinyin
+corepack pnpm db:test:pinyin
+```
+
+The import is transactional and idempotent. It verifies the bundled audio bytes against the
+declared SHA-256 hashes before writing. Published Pinyin rows are immutable; deploy a new content
+version rather than editing them. The runtime application role can read published rows only.
+
 The API authenticates users with Better Auth, then runs private business queries as
 `hanziquest_app` with a transaction-local `app.current_user_id`. Forced PostgreSQL RLS prevents
 cross-user access. The mobile app never receives database credentials.

@@ -53,6 +53,11 @@ content labels, deterministic estimates, and cursor pagination without changing 
 attempts, or confusion state. The Review tab remains an unfinished placeholder until Task 8.2B,
 and the full release audit must be rerun as Task 9.5R.
 
+Task 5.9P-A moves Pinyin from a demo-only fixture into a versioned PostgreSQL curriculum domain.
+It adds stable initial/final/tone/syllable concepts, licensed audio metadata with byte-verified
+SHA-256 hashes, an idempotent formal import, and explicit canonical/surface Pinyin reading fields.
+Pinyin planning and server scoring remain disabled until Task 5.9P-B.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)
@@ -107,7 +112,9 @@ pnpm verify:no-ai
 pnpm verify:v1-release
 pnpm db:validate:static
 pnpm db:migrate
+pnpm db:import:pinyin
 pnpm db:test
+pnpm db:test:pinyin
 pnpm build
 ```
 

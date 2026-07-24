@@ -46,14 +46,14 @@ function createSentence(
   id: string,
   simplified: string,
   traditional: string,
-  pinyin: string,
+  canonicalPinyin: string,
   characterConceptIds: string[],
   targetConceptIds: string[],
 ): Sentence {
   return {
     id,
     text: { simplified, traditional },
-    pinyin,
+    canonicalPinyin,
     meaningEn: 'A short sentence about eating rice.',
     characterConceptIds,
     targetConceptIds,
@@ -136,7 +136,7 @@ export const demoCurriculumPackage: CurriculumPackage = {
     {
       id: ids.word,
       text: { simplified: '吃饭', traditional: '吃飯' },
-      pinyin: 'chī fàn',
+      canonicalPinyin: 'chī fàn',
       meaningZh: '吃一顿饭',
       meaningEn: 'to eat a meal',
       characterConceptIds: [ids.eat, ids.rice],

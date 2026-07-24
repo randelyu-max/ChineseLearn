@@ -69,14 +69,14 @@ function sentence(
   idValue: string,
   simplified: string,
   traditional: string,
-  pinyin: string,
+  canonicalPinyin: string,
   glyphs: string[],
   target: string,
 ): Sentence {
   return {
     id: idValue,
     text: { simplified, traditional },
-    pinyin,
+    canonicalPinyin,
     meaningEn: 'A sentence from the My Home demo story.',
     characterConceptIds: glyphs.map((glyph) => homeDemoConceptIds[glyph]!),
     targetConceptIds: [homeDemoConceptIds[target]!],
@@ -254,10 +254,10 @@ export const homeDemoCurriculumPackage: CurriculumPackage = {
     },
   ],
   characters: characterData.map(character),
-  words: words.map(([simplified, traditional, pinyin, glyphs], index) => ({
+  words: words.map(([simplified, traditional, canonicalPinyin, glyphs], index) => ({
     id: id(String(501 + index)),
     text: { simplified, traditional },
-    pinyin,
+    canonicalPinyin,
     meaningZh: simplified,
     meaningEn: `Demo word: ${simplified}`,
     characterConceptIds: glyphs.map((glyph) => homeDemoConceptIds[glyph]!),
