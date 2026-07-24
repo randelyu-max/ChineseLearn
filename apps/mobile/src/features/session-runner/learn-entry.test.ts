@@ -101,6 +101,12 @@ describe('learn entry orchestration', () => {
       session: { status: 'in_progress', sessionId: RUNNER_SESSION_ID },
     });
     expect(service.plan).toHaveBeenCalledOnce();
+    expect(service.plan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientCapabilities: ['pinyin-exercises-v1'],
+        intent: 'learn',
+      }),
+    );
     expect(service.start).toHaveBeenCalledOnce();
     await expect(store.getActiveFormalSession(RUNNER_USER_ID)).resolves.toMatchObject({
       status: 'in_progress',

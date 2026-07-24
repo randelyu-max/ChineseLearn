@@ -18,15 +18,22 @@ import {
 } from './model';
 
 type Props = {
+  disabled?: boolean;
   exercise: PinyinToGlyphExerciseDefinition;
   onRetry: () => void;
   onSelectOption: (optionId: string) => void;
   state: PinyinToGlyphState;
 };
 
-export function PinyinToGlyphExercise({ exercise, onRetry, onSelectOption, state }: Props) {
+export function PinyinToGlyphExercise({
+  disabled = false,
+  exercise,
+  onRetry,
+  onSelectOption,
+  state,
+}: Props) {
   const compact = pinyinToGlyphLayout(useWindowDimensions().width).columns === 1;
-  const optionsDisabled = state.status !== 'awaiting-answer';
+  const optionsDisabled = disabled || state.status !== 'awaiting-answer';
   const correctOption = exercise.options.find(
     (option) => option.optionId === exercise.correctOptionId,
   );

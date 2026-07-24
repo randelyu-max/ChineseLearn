@@ -20,6 +20,7 @@ import {
 } from './model';
 
 type Props = {
+  disabled?: boolean;
   exercise: GlyphToPinyinExerciseDefinition;
   onHint: () => void;
   onRetry: () => void;
@@ -27,9 +28,16 @@ type Props = {
   state: GlyphToPinyinState;
 };
 
-export function GlyphToPinyinExercise({ exercise, onHint, onRetry, onSelectOption, state }: Props) {
+export function GlyphToPinyinExercise({
+  disabled = false,
+  exercise,
+  onHint,
+  onRetry,
+  onSelectOption,
+  state,
+}: Props) {
   const compact = glyphToPinyinLayout(useWindowDimensions().width).columns === 1;
-  const optionsDisabled = state.status !== 'awaiting-answer';
+  const optionsDisabled = disabled || state.status !== 'awaiting-answer';
   const selectedOption = exercise.options.find(
     (option) => option.optionId === state.selectedOptionId,
   );

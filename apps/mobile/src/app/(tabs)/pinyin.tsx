@@ -1,342 +1,147 @@
-import { spacing } from '@hanziquest/design-tokens';
 import {
-  completePinyinSupportActivity,
-  interruptPinyinSupportFade,
-} from '@hanziquest/learning-engine';
-import { preload, useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
-import { useEffect, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
+  borders,
+  colors,
+  fontSizes,
+  fontWeights,
+  lineHeights,
+  radii,
+  spacing,
+} from '@hanziquest/design-tokens';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
 
-import ma2Audio from '../../../assets/audio/pinyin/ma2.mp3';
-import ma3Audio from '../../../assets/audio/pinyin/ma3.mp3';
-import ma4Audio from '../../../assets/audio/pinyin/ma4.mp3';
-import { Screen } from '@/components/ui';
-import {
-  AdaptivePinyinSupportCard,
-  createAdaptivePinyinDemoState,
-} from '@/features/adaptive-pinyin-support';
+import { PrimaryButton, ProgressBar, Screen } from '@/components/ui';
 import { useAuth } from '@/features/auth';
-import {
-  AudioToPinyinExercise,
-  audioToPinyinDemoExercise,
-  createAudioToPinyinState,
-  recordAudioToPinyinPlayback,
-  retryAudioToPinyin,
-  selectAudioToPinyinOption,
-  type PinyinAudioStatus,
-} from '@/features/audio-to-pinyin';
-import {
-  createPinyinToAudioState,
-  PinyinToAudioExercise,
-  pinyinToAudioDemoExercise,
-  recordPinyinToAudioPlayback,
-  retryPinyinToAudio,
-  selectPinyinToAudioOption,
-  type PinyinToAudioPlaybackStatus,
-} from '@/features/pinyin-to-audio';
-import {
-  createGlyphToPinyinState,
-  GlyphToPinyinExercise,
-  glyphToPinyinDemoExercise,
-  requestGlyphToPinyinHint,
-  retryGlyphToPinyin,
-  selectGlyphToPinyinOption,
-} from '@/features/glyph-to-pinyin';
-import {
-  createPinyinToGlyphState,
-  PinyinToGlyphExercise,
-  pinyinToGlyphDemoExercise,
-  retryPinyinToGlyph,
-  selectPinyinToGlyphOption,
-} from '@/features/pinyin-to-glyph';
-import {
-  createPinyinSyllableBuildState,
-  PinyinSyllableBuildExercise,
-  pinyinSyllableBuildDemoExercise,
-  resetPinyinSyllable,
-  selectPinyinFinal,
-  selectPinyinInitial,
-  selectPinyinTone,
-  submitPinyinSyllable,
-} from '@/features/pinyin-syllable-build';
-import {
-  createToneChoiceState,
-  retryToneChoice,
-  selectToneChoiceOption,
-  ToneChoiceExercise,
-  toneChoiceDemoExercise,
-} from '@/features/tone-choice';
-
-const pinyinToAudioSources = {
-  'pinyin-ma2-v1': ma2Audio,
-  'pinyin-ma3-v1': ma3Audio,
-  'pinyin-ma4-v1': ma4Audio,
-} as const;
-
-function preloadPinyinToAudio(): Promise<boolean> {
-  return Promise.all(Object.values(pinyinToAudioSources).map((source) => preload(source))).then(
-    () => true,
-    () => false,
-  );
-}
-
-let pinyinToAudioPreloadPromise = preloadPinyinToAudio();
+import { getOfflineStore, type FormalSessionCacheRecord } from '@/features/offline-storage';
+import { PRODUCTION_PINYIN_ROUTE } from '@/features/session-runner';
+import { summarizePinyinProgress } from '@/features/session-runner/pinyin-entry';
 
 export default function PinyinScreen() {
-  const { state: authState } = useAuth();
-  const audioToPinyinPlayer = useAudioPlayer(ma3Audio);
-  const audioToPinyinPlayerStatus = useAudioPlayerStatus(audioToPinyinPlayer);
-  const [audioToPinyinState, setAudioToPinyinState] = useState(createAudioToPinyinState);
-  const [audioToPinyinFailed, setAudioToPinyinFailed] = useState(false);
-  const audioToPinyinStatus: PinyinAudioStatus =
-    audioToPinyinFailed || audioToPinyinPlayerStatus.error
-      ? 'error'
-      : !audioToPinyinPlayerStatus.isLoaded
-        ? 'loading'
-        : audioToPinyinPlayerStatus.playing
-          ? 'playing'
-          : 'ready';
+  const { state } = useAuth();
+  const router = useRouter();
+  const [session, setSession] = useState<FormalSessionCacheRecord | null>(null);
 
-  const ma2Player = useAudioPlayer(ma2Audio);
-  const ma3Player = useAudioPlayer(ma3Audio);
-  const ma4Player = useAudioPlayer(ma4Audio);
-  const ma2Status = useAudioPlayerStatus(ma2Player);
-  const ma3Status = useAudioPlayerStatus(ma3Player);
-  const ma4Status = useAudioPlayerStatus(ma4Player);
-  const [pinyinToAudioState, setPinyinToAudioState] = useState(createPinyinToAudioState);
-  const [pinyinToGlyphState, setPinyinToGlyphState] = useState(createPinyinToGlyphState);
-  const [glyphToPinyinState, setGlyphToPinyinState] = useState(createGlyphToPinyinState);
-  const [toneChoiceState, setToneChoiceState] = useState(createToneChoiceState);
-  const [syllableBuildState, setSyllableBuildState] = useState(createPinyinSyllableBuildState);
-  const [adaptivePinyinState, setAdaptivePinyinState] = useState(() =>
-    createAdaptivePinyinDemoState(authState.profile?.pinyinSupportMode ?? 'adaptive'),
-  );
-  const [pinyinToAudioStatus, setPinyinToAudioStatus] = useState<PinyinToAudioPlaybackStatus>({
-    failedOptionId: null,
-    phase: 'loading',
-    playingOptionId: null,
-  });
-
-  const audioEntry = (assetKey: string) => {
-    if (assetKey === 'pinyin-ma2-v1') {
-      return { player: ma2Player, source: ma2Audio, status: ma2Status };
-    }
-    if (assetKey === 'pinyin-ma3-v1') {
-      return { player: ma3Player, source: ma3Audio, status: ma3Status };
-    }
-    if (assetKey === 'pinyin-ma4-v1') {
-      return { player: ma4Player, source: ma4Audio, status: ma4Status };
-    }
-    throw new Error(`Unknown bundled Pinyin audio asset: ${assetKey}`);
-  };
-
-  useEffect(() => {
-    let active = true;
-    void pinyinToAudioPreloadPromise.then((success) => {
-      if (!active || success) return;
-      setPinyinToAudioStatus({
-        failedOptionId: null,
-        phase: 'error',
-        playingOptionId: null,
-      });
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const optionByAsset = new Map(
-    pinyinToAudioDemoExercise.options.map((option) => [option.assetKey, option.optionId]),
-  );
-  const playerEntries = [
-    { assetKey: 'pinyin-ma2-v1', status: ma2Status },
-    { assetKey: 'pinyin-ma3-v1', status: ma3Status },
-    { assetKey: 'pinyin-ma4-v1', status: ma4Status },
-  ];
-  const failedPlayer = playerEntries.find((entry) => entry.status.error);
-  const playingPlayer = playerEntries.find((entry) => entry.status.playing);
-  const observedPinyinToAudioStatus: PinyinToAudioPlaybackStatus =
-    pinyinToAudioStatus.phase === 'error'
-      ? pinyinToAudioStatus
-      : failedPlayer
-        ? {
-            failedOptionId: optionByAsset.get(failedPlayer.assetKey) ?? null,
-            phase: 'error',
-            playingOptionId: null,
-          }
-        : playingPlayer
-          ? {
-              failedOptionId: null,
-              phase: 'playing',
-              playingOptionId: optionByAsset.get(playingPlayer.assetKey) ?? null,
-            }
-          : playerEntries.every((entry) => entry.status.isLoaded)
-            ? {
-                failedOptionId: null,
-                phase: 'ready',
-                playingOptionId: null,
-              }
-            : pinyinToAudioStatus;
-
-  const playAudioToPinyin = () => {
-    setAudioToPinyinFailed(false);
-    void audioToPinyinPlayer
-      .seekTo(0)
-      .then(() => {
-        audioToPinyinPlayer.play();
-        setAudioToPinyinState((current) => recordAudioToPinyinPlayback(current));
-      })
-      .catch(() => setAudioToPinyinFailed(true));
-  };
-
-  const playPinyinToAudioOption = (optionId: string) => {
-    const option = pinyinToAudioDemoExercise.options.find((item) => item.optionId === optionId);
-    if (!option) return;
-    const { player } = audioEntry(option.assetKey);
-    ma2Player.pause();
-    ma3Player.pause();
-    ma4Player.pause();
-    setPinyinToAudioStatus({
-      failedOptionId: null,
-      phase: 'ready',
-      playingOptionId: null,
-    });
-    void player
-      .seekTo(0)
-      .then(() => {
-        player.play();
-        setPinyinToAudioState((current) =>
-          recordPinyinToAudioPlayback(pinyinToAudioDemoExercise, current, optionId),
-        );
-      })
-      .catch(() =>
-        setPinyinToAudioStatus({
-          failedOptionId: optionId,
-          phase: 'error',
-          playingOptionId: null,
-        }),
-      );
-  };
-
-  const retryPinyinToAudioAssets = () => {
-    setPinyinToAudioStatus({
-      failedOptionId: null,
-      phase: 'loading',
-      playingOptionId: null,
-    });
-    for (const option of pinyinToAudioDemoExercise.options) {
-      const { player, source } = audioEntry(option.assetKey);
-      player.pause();
-      player.replace(source);
-    }
-    pinyinToAudioPreloadPromise = preloadPinyinToAudio();
-    void pinyinToAudioPreloadPromise.then((success) => {
-      if (!success) {
-        setPinyinToAudioStatus({
-          failedOptionId: null,
-          phase: 'error',
-          playingOptionId: null,
-        });
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      const userId = state.userId;
+      if (state.status !== 'ready' || !userId) {
+        return () => {
+          active = false;
+        };
       }
-    });
-  };
+      void getOfflineStore()
+        .then((store) => store.getActiveFormalSession(userId))
+        .then((result) => {
+          if (active) setSession(result);
+        })
+        .catch(() => {
+          if (active) setSession(null);
+        });
+      return () => {
+        active = false;
+      };
+    }, [state.status, state.userId]),
+  );
+
+  const progress = summarizePinyinProgress(
+    state.status === 'ready' && state.userId ? session : null,
+  );
+  const recommendation = progress.recommendation === 'review_tones' ? '复习声调' : '继续拼音学习';
+  const progressValue = progress.total === 0 ? 0 : progress.completed / progress.total;
 
   return (
-    <Screen scrollable>
-      <View style={styles.exerciseList}>
-        <AudioToPinyinExercise
-          audioStatus={audioToPinyinStatus}
-          exercise={audioToPinyinDemoExercise}
-          onPlayAudio={playAudioToPinyin}
-          onRetry={() => setAudioToPinyinState((current) => retryAudioToPinyin(current))}
-          onSelectOption={(optionId) =>
-            setAudioToPinyinState((current) =>
-              selectAudioToPinyinOption(audioToPinyinDemoExercise, current, optionId),
-            )
-          }
-          state={audioToPinyinState}
-        />
-        <PinyinToAudioExercise
-          exercise={pinyinToAudioDemoExercise}
-          onPlayOption={playPinyinToAudioOption}
-          onRetryAnswer={() => setPinyinToAudioState((current) => retryPinyinToAudio(current))}
-          onRetryAudio={retryPinyinToAudioAssets}
-          onSelectOption={(optionId) =>
-            setPinyinToAudioState((current) =>
-              selectPinyinToAudioOption(pinyinToAudioDemoExercise, current, optionId),
-            )
-          }
-          playbackStatus={observedPinyinToAudioStatus}
-          state={pinyinToAudioState}
-        />
-        <PinyinToGlyphExercise
-          exercise={pinyinToGlyphDemoExercise}
-          onRetry={() => setPinyinToGlyphState((current) => retryPinyinToGlyph(current))}
-          onSelectOption={(optionId) =>
-            setPinyinToGlyphState((current) =>
-              selectPinyinToGlyphOption(pinyinToGlyphDemoExercise, current, optionId),
-            )
-          }
-          state={pinyinToGlyphState}
-        />
-        <GlyphToPinyinExercise
-          exercise={glyphToPinyinDemoExercise}
-          onHint={() => setGlyphToPinyinState((current) => requestGlyphToPinyinHint(current))}
-          onRetry={() => setGlyphToPinyinState((current) => retryGlyphToPinyin(current))}
-          onSelectOption={(optionId) =>
-            setGlyphToPinyinState((current) =>
-              selectGlyphToPinyinOption(glyphToPinyinDemoExercise, current, optionId),
-            )
-          }
-          state={glyphToPinyinState}
-        />
-        <ToneChoiceExercise
-          exercise={toneChoiceDemoExercise}
-          onRetry={() => setToneChoiceState((current) => retryToneChoice(current))}
-          onSelectOption={(optionId) =>
-            setToneChoiceState((current) =>
-              selectToneChoiceOption(toneChoiceDemoExercise, current, optionId),
-            )
-          }
-          state={toneChoiceState}
-        />
-        <PinyinSyllableBuildExercise
-          exercise={pinyinSyllableBuildDemoExercise}
-          onReset={() => setSyllableBuildState((current) => resetPinyinSyllable(current))}
-          onSelectFinal={(final) =>
-            setSyllableBuildState((current) =>
-              selectPinyinFinal(pinyinSyllableBuildDemoExercise, current, final),
-            )
-          }
-          onSelectInitial={(initial) =>
-            setSyllableBuildState((current) =>
-              selectPinyinInitial(pinyinSyllableBuildDemoExercise, current, initial),
-            )
-          }
-          onSelectTone={(tone) =>
-            setSyllableBuildState((current) =>
-              selectPinyinTone(pinyinSyllableBuildDemoExercise, current, tone),
-            )
-          }
-          onSubmit={() =>
-            setSyllableBuildState((current) =>
-              submitPinyinSyllable(pinyinSyllableBuildDemoExercise, current),
-            )
-          }
-          state={syllableBuildState}
-        />
-        <AdaptivePinyinSupportCard
-          onCompleteActivity={() =>
-            setAdaptivePinyinState((current) => completePinyinSupportActivity(current))
-          }
-          onReveal={() => setAdaptivePinyinState((current) => interruptPinyinSupportFade(current))}
-          state={adaptivePinyinState}
+    <Screen scrollable style={styles.screen}>
+      <View style={styles.header}>
+        <Text accessibilityRole="header" style={styles.title}>
+          拼音
+        </Text>
+        <Text style={styles.body}>
+          通过正式学习 Session 练习听音、声调、拼音与汉字之间的对应关系。
+        </Text>
+      </View>
+
+      <View style={styles.card} testID="formal-pinyin-progress">
+        <Text style={styles.cardLabel}>当前拼音进度</Text>
+        <ProgressBar label="当前正式课程的拼音进度" value={progressValue} />
+        <Text style={styles.progressText}>
+          {progress.total > 0
+            ? `本节已完成 ${progress.completed} / ${progress.total} 道拼音练习`
+            : '当前没有进行中的拼音练习；开始新课程后会自动安排合适内容。'}
+        </Text>
+      </View>
+
+      <View style={styles.recommendation}>
+        <Text style={styles.cardLabel}>建议</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.recommendationText}>
+          {recommendation}
+        </Text>
+        <Text style={styles.body}>
+          新课程会由服务器根据已发布内容与学习记录规划，并可混合汉字和拼音练习。
+        </Text>
+        <PrimaryButton
+          label={recommendation}
+          onPress={() => router.push(PRODUCTION_PINYIN_ROUTE)}
+          testID="start-formal-pinyin-session"
         />
       </View>
+
+      <Text style={styles.privacy}>
+        发音音频随应用提供并可离线播放。本功能不启用麦克风、不录音，也不上传声音。
+      </Text>
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  exerciseList: { gap: spacing.xxxl },
+  body: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.body,
+    lineHeight: lineHeights.body,
+  },
+  card: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderRadius: radii.lg,
+    borderWidth: borders.thin,
+    gap: spacing.md,
+    padding: spacing.xl,
+  },
+  cardLabel: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.bodyLarge,
+    fontWeight: fontWeights.semibold,
+    lineHeight: lineHeights.bodyLarge,
+  },
+  header: { gap: spacing.sm },
+  privacy: {
+    color: colors.textSecondary,
+    fontSize: fontSizes.caption,
+    lineHeight: lineHeights.caption,
+  },
+  progressText: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.body,
+    lineHeight: lineHeights.body,
+  },
+  recommendation: {
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radii.lg,
+    gap: spacing.md,
+    padding: spacing.xl,
+  },
+  recommendationText: {
+    color: colors.primary,
+    fontSize: fontSizes.heading,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.heading,
+  },
+  screen: { gap: spacing.xl, paddingBottom: spacing.xxl },
+  title: {
+    color: colors.textPrimary,
+    fontSize: fontSizes.display,
+    fontWeight: fontWeights.bold,
+    lineHeight: lineHeights.display,
+  },
 });

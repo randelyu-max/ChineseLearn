@@ -23,6 +23,7 @@ export type PinyinAudioStatus = 'error' | 'loading' | 'playing' | 'ready';
 
 type Props = {
   audioStatus: PinyinAudioStatus;
+  disabled?: boolean;
   exercise: AudioToPinyinExerciseDefinition;
   onPlayAudio: () => void;
   onRetry: () => void;
@@ -32,6 +33,7 @@ type Props = {
 
 export function AudioToPinyinExercise({
   audioStatus,
+  disabled = false,
   exercise,
   onPlayAudio,
   onRetry,
@@ -40,7 +42,7 @@ export function AudioToPinyinExercise({
 }: Props) {
   const compact = audioToPinyinLayout(useWindowDimensions().width).columns === 1;
   const completed = state.status === 'correct-feedback';
-  const optionsDisabled = completed || state.status === 'incorrect-feedback';
+  const optionsDisabled = disabled || completed || state.status === 'incorrect-feedback';
   const replayCount = audioToPinyinReplayCount(state);
   const correctOption = exercise.options.find(
     (option) => option.optionId === exercise.correctOptionId,
@@ -60,7 +62,7 @@ export function AudioToPinyinExercise({
         </Text>
         <Text style={styles.instructions}>注意音节和声调。可以重复播放，不需要英语翻译。</Text>
         <AudioButton
-          disabled={audioStatus === 'loading' || completed}
+          disabled={disabled || audioStatus === 'loading' || completed}
           label={audioStatus === 'playing' ? '正在播放' : audioLabel}
           onPress={onPlayAudio}
           testID="audio-to-pinyin-play"

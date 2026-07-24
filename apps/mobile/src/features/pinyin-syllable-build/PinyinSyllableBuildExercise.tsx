@@ -23,6 +23,7 @@ import {
 const TONE_LABELS = { 1: '一声', 2: '二声', 3: '三声', 4: '四声', 5: '轻声' } as const;
 
 type Props = {
+  disabled?: boolean;
   exercise: PinyinSyllableBuildExerciseDefinition;
   onReset: () => void;
   onSelectFinal: (final: PinyinSyllableBuildExerciseDefinition['finalOptions'][number]) => void;
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function PinyinSyllableBuildExercise({
+  disabled = false,
   exercise,
   onReset,
   onSelectFinal,
@@ -66,7 +68,7 @@ export function PinyinSyllableBuildExercise({
         compact={compact}
         label="第一步：选择声母"
         options={exercise.initialOptions.map((initial) => ({
-          disabled: state.selectedInitial !== null || state.status !== 'building',
+          disabled: disabled || state.selectedInitial !== null || state.status !== 'building',
           id: initial,
           label: initial === 'none' ? '零声母' : initial,
           selected: state.selectedInitial === initial,
@@ -79,7 +81,7 @@ export function PinyinSyllableBuildExercise({
         compact={compact}
         label="第二步：选择韵母"
         options={exercise.finalOptions.map((final) => ({
-          disabled: !canSelectFinal(state, final),
+          disabled: disabled || !canSelectFinal(state, final),
           id: final,
           label: final,
           selected: state.selectedFinal === final,
@@ -93,6 +95,7 @@ export function PinyinSyllableBuildExercise({
         label="第三步：选择声调"
         options={exercise.toneOptions.map((tone) => ({
           disabled:
+            disabled ||
             state.status !== 'building' ||
             state.selectedFinal === null ||
             state.selectedTone !== null,
@@ -107,10 +110,17 @@ export function PinyinSyllableBuildExercise({
         }
       />
 
-      {state.status === 'ready' ? <PrimaryButton label="检查拼音" onPress={onSubmit} /> : null}
+      {state.status === 'ready' ? (
+        <PrimaryButton disabled={disabled} label="检查拼音" onPress={onSubmit} />
+      ) : null}
       {state.status === 'building' &&
       (state.selectedInitial !== null || state.selectedFinal !== null) ? (
-        <Pressable accessibilityRole="button" onPress={onReset} style={styles.resetButton}>
+        <Pressable
+          accessibilityRole="button"
+          disabled={disabled}
+          onPress={onReset}
+          style={styles.resetButton}
+        >
           <Text style={styles.resetText}>重新开始</Text>
         </Pressable>
       ) : null}

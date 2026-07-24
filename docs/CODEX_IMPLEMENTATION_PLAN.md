@@ -4,7 +4,7 @@ Status: Task 8.2A restored only the Review Center read model/API. The old direct
 Task 9.5R sequence is **SUPERSEDED** by
 [`docs/addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md`](addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md)
 and `TASK_MANIFEST_POST_8_2A.yaml`. The current stage is Closed Alpha, not a public V1 release
-candidate. Task 5.9P-B is complete; the next dependency-scoped task is 5.9P-C.
+candidate. Task 5.9P-C is complete; the next dependency-scoped task is 8.2A-H.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -394,6 +394,32 @@ incomplete audit after 8.2A and 8.2B are accepted.
 - **回滚：** Restore Home navigation to its previous placeholder while retaining formal cache,
   immutable Attempts, and outbox records for recovery. Do not delete pending evidence or rewrite
   migrations.
+
+### 5.9P-C — Pinyin integration into the universal Session Runner
+
+- **状态：** Complete on 2026-07-24; next task is 8.2A-H.
+- **目标：** Run all six formal Pinyin exercise types through the same immutable Session,
+  persistent V2 outbox, supportive feedback, recovery, synchronization, and completion flow as
+  Hanzi.
+- **实现：** The mobile planner now declares `pinyin-exercises-v1`. Runner state
+  `formal-session-runner-v2` supports all ten exercise types; pure adapters connect the six
+  existing Pinyin components to immutable V2 answer IDs and the shared Attempt path. Bundled
+  Pinyin audio is resolved locally, prefetched once per Activity `contentSha256`, replay-counted
+  only after playback preparation succeeds, and recoverable on failure. The Pinyin tab shows
+  current formal-Session Pinyin progress and opens `/session` instead of rendering six demos.
+- **版本决定：** No API contract, learning algorithm, database schema, migration, dependency, or
+  lockfile changed. The optional capability remains backward compatible with clients that omit it.
+- **实际验证：** Frozen install; mobile lint/typecheck and 42 test files; Expo Web export of 23
+  routes; PostgreSQL 17 migration, full learning-loop/Pinyin integration, and isolated legacy
+  Evidence backfill tests; full repository validation; runtime/privacy boundary scans; and
+  `git diff --check`.
+- **风险：** Physical-device offline audio/process-death checks remain release work. The bundled
+  registry currently covers the three approved `ma2/ma3/ma4` assets; future release assets must be
+  bound by 8.3E or the Runner fails closed. The Pinyin tab shows active-Session progress rather
+  than a historical mastery dashboard.
+- **回滚：** Remove the mobile capability opt-in and Pinyin renderer/entry additions while
+  retaining immutable Session snapshots, Attempts, Evidence, and pending outbox events. No
+  database rollback is required.
 
 ### 8.2B — Mobile Review Center
 

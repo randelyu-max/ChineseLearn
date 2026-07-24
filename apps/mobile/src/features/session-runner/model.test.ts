@@ -2,8 +2,9 @@ import { describe, expect, it } from 'vitest';
 
 import {
   advanceRunner,
-  createFormalHanziRunnerState,
+  createFormalSessionRunnerState,
   markRunnerAttemptPersisted,
+  recordRunnerAudioPlayback,
   requestRunnerHint,
   revealRunnerPinyin,
   retryRunnerAnswer,
@@ -28,10 +29,10 @@ function context(index: number) {
   };
 }
 
-describe('formal Hanzi Session Runner model', () => {
-  it('completes all four supported types across multiple source Lessons', () => {
+describe('formal universal Session Runner model', () => {
+  it('completes all ten Hanzi and Pinyin types across multiple source Lessons', () => {
     let session = runnerSession();
-    let state = startRunnerActivity(createFormalHanziRunnerState(session), 0);
+    let state = startRunnerActivity(createFormalSessionRunnerState(session), 0);
     const submittedTypes: string[] = [];
 
     for (let index = 0; index < runnerActivities.length; index += 1) {
@@ -51,17 +52,23 @@ describe('formal Hanzi Session Runner model', () => {
       'glyph_to_image',
       'word_build',
       'sentence_order',
+      'audio_to_pinyin',
+      'pinyin_to_audio',
+      'pinyin_to_glyph',
+      'glyph_to_pinyin',
+      'tone_choice',
+      'pinyin_syllable_build',
     ]);
     expect(new Set(runnerActivities.map((activity) => activity.contentRef.split('.')[1]))).toEqual(
       new Set(['lesson-0', 'lesson-1']),
     );
     expect(state.phase).toBe('completing_session');
-    expect(session.completedActivityIds).toHaveLength(4);
+    expect(session.completedActivityIds).toHaveLength(10);
   });
 
   it('persists wrong evidence, hint/retry state, and explicit Pinyin support', () => {
     const session = runnerSession();
-    let state = startRunnerActivity(createFormalHanziRunnerState(session), 0);
+    let state = startRunnerActivity(createFormalSessionRunnerState(session), 0);
     state = requestRunnerHint(state);
     state = revealRunnerPinyin(session, state);
     const exercise = runnerActivities[0]!.exercise;
@@ -93,7 +100,7 @@ describe('formal Hanzi Session Runner model', () => {
 
   it('ignores double submission while an Attempt is persisting', () => {
     const session = runnerSession();
-    const answering = startRunnerActivity(createFormalHanziRunnerState(session), 0);
+    const answering = startRunnerActivity(createFormalSessionRunnerState(session), 0);
     const first = submitRunnerAnswer(session, answering, correctAnswerAt(0), context(0));
     const duplicate = submitRunnerAnswer(session, first.state, correctAnswerAt(0), context(1));
     expect(first.attempt).not.toBeNull();
@@ -103,15 +110,61 @@ describe('formal Hanzi Session Runner model', () => {
 
   it('resumes at the first incomplete Activity after process restart', () => {
     let session = runnerSession();
-    const answering = startRunnerActivity(createFormalHanziRunnerState(session), 0);
+    const answering = startRunnerActivity(createFormalSessionRunnerState(session), 0);
     const submitted = submitRunnerAnswer(session, answering, correctAnswerAt(0), context(0));
     session = sessionRecordAfterAttempt(session, submitted.state, RUNNER_NOW);
-    const restored = createFormalHanziRunnerState(session);
+    const restored = createFormalSessionRunnerState(session);
     expect(restored).toMatchObject({
       sessionId: RUNNER_SESSION_ID,
       activityIndex: 1,
       phase: 'ready',
     });
     expect(restored.completedActivityIds).toEqual([runnerActivities[0]!.sessionActivityId]);
+  });
+
+  it('resumes after a persisted Pinyin Attempt without replaying completed work', () => {
+    let session = {
+      ...runnerSession(),
+      completedActivityIds: runnerActivities
+        .slice(0, 4)
+        .map((activity) => activity.sessionActivityId),
+      currentActivityPosition: 4,
+    };
+    const answering = startRunnerActivity(createFormalSessionRunnerState(session), 0);
+    const submitted = submitRunnerAnswer(session, answering, correctAnswerAt(4), context(4));
+    session = sessionRecordAfterAttempt(session, submitted.state, RUNNER_NOW);
+    const restored = createFormalSessionRunnerState(session);
+    expect(restored).toMatchObject({ activityIndex: 5, phase: 'ready' });
+    expect(restored.completedActivityIds).toContain(runnerActivities[4]!.sessionActivityId);
+  });
+
+  it('counts only successful repeat playback as replay evidence', () => {
+    const session = runnerSession();
+    let state = startRunnerActivity(createFormalSessionRunnerState(session), 0);
+    state = recordRunnerAudioPlayback(state, 'audio.fixture');
+    expect(state.activityState).toMatchObject({
+      audioPlayCounts: { 'audio.fixture': 1 },
+      hintLevel: 'none',
+      replayCount: 0,
+    });
+    state = recordRunnerAudioPlayback(state, 'audio.fixture');
+    expect(state.activityState).toMatchObject({
+      audioPlayCounts: { 'audio.fixture': 2 },
+      hintLevel: 'audio_repeat',
+      replayCount: 1,
+    });
+  });
+
+  it('scores the explicit neutral tone and context reading locally before server verification', () => {
+    const session = runnerSession();
+    for (const index of [7, 8]) {
+      const base = {
+        ...createFormalSessionRunnerState(session),
+        activityIndex: index,
+      };
+      const state = startRunnerActivity(base, 0);
+      const submitted = submitRunnerAnswer(session, state, correctAnswerAt(index), context(index));
+      expect(submitted.attempt).toMatchObject({ isCorrectClient: true });
+    }
   });
 });

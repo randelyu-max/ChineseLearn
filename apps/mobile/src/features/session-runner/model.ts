@@ -1,5 +1,6 @@
 import {
   AttemptDraftV2Schema,
+  isLegalPinyinCombination,
   type AttemptAnswerV2,
   type AttemptDraftV2,
   type HintLevel,
@@ -11,12 +12,22 @@ import {
   type FormalSessionCacheRecord,
 } from '../offline-storage/model';
 
-export const FORMAL_HANZI_RUNNER_VERSION = 'formal-hanzi-runner-v1' as const;
+export const FORMAL_SESSION_RUNNER_VERSION = 'formal-session-runner-v2' as const;
 
-export type SupportedHanziExercise = Extract<
+export type SupportedFormalExercise = Extract<
   LearningExerciseV2,
   {
-    type: 'audio_to_glyph' | 'glyph_to_image' | 'sentence_order' | 'word_build';
+    type:
+      | 'audio_to_glyph'
+      | 'glyph_to_image'
+      | 'word_build'
+      | 'sentence_order'
+      | 'audio_to_pinyin'
+      | 'pinyin_to_audio'
+      | 'pinyin_to_glyph'
+      | 'glyph_to_pinyin'
+      | 'tone_choice'
+      | 'pinyin_syllable_build';
   }
 >;
 
@@ -33,6 +44,7 @@ export type RunnerPhase =
 export type RunnerActivityState = Readonly<{
   accumulatedResponseMs: number;
   activeStartedAtMs: number | null;
+  audioPlayCounts: Readonly<Record<string, number>>;
   hintLevel: HintLevel;
   localCorrect: boolean | null;
   pinyinRevealed: boolean;
@@ -42,8 +54,8 @@ export type RunnerActivityState = Readonly<{
   selectedTileIds: readonly string[];
 }>;
 
-export type FormalHanziRunnerState = Readonly<{
-  schemaVersion: typeof FORMAL_HANZI_RUNNER_VERSION;
+export type FormalSessionRunnerState = Readonly<{
+  schemaVersion: typeof FORMAL_SESSION_RUNNER_VERSION;
   sessionId: string;
   activityIndex: number;
   activityState: RunnerActivityState;
@@ -63,6 +75,7 @@ function freshActivityState(startedAtMs: number | null): RunnerActivityState {
   return {
     accumulatedResponseMs: 0,
     activeStartedAtMs: startedAtMs,
+    audioPlayCounts: {},
     hintLevel: 'none',
     localCorrect: null,
     pinyinRevealed: false,
@@ -73,24 +86,30 @@ function freshActivityState(startedAtMs: number | null): RunnerActivityState {
   };
 }
 
-export function isSupportedHanziExercise(
+export function isSupportedFormalExercise(
   exercise: LearningExerciseV2,
-): exercise is SupportedHanziExercise {
-  return (
-    exercise.type === 'audio_to_glyph' ||
-    exercise.type === 'glyph_to_image' ||
-    exercise.type === 'word_build' ||
-    exercise.type === 'sentence_order'
-  );
+): exercise is SupportedFormalExercise {
+  return [
+    'audio_to_glyph',
+    'glyph_to_image',
+    'word_build',
+    'sentence_order',
+    'audio_to_pinyin',
+    'pinyin_to_audio',
+    'pinyin_to_glyph',
+    'glyph_to_pinyin',
+    'tone_choice',
+    'pinyin_syllable_build',
+  ].includes(exercise.type);
 }
 
-export function createFormalHanziRunnerState(
+export function createFormalSessionRunnerState(
   input: FormalSessionCacheRecord,
-): FormalHanziRunnerState {
+): FormalSessionRunnerState {
   const session = FormalSessionCacheRecordSchema.parse(input);
-  if (session.activities.some((activity) => !isSupportedHanziExercise(activity.exercise))) {
+  if (session.activities.some((activity) => !isSupportedFormalExercise(activity.exercise))) {
     return {
-      schemaVersion: FORMAL_HANZI_RUNNER_VERSION,
+      schemaVersion: FORMAL_SESSION_RUNNER_VERSION,
       sessionId: session.sessionId,
       activityIndex: 0,
       activityState: freshActivityState(null),
@@ -104,7 +123,7 @@ export function createFormalHanziRunnerState(
   );
   const allCompleted = firstIncomplete === -1;
   return {
-    schemaVersion: FORMAL_HANZI_RUNNER_VERSION,
+    schemaVersion: FORMAL_SESSION_RUNNER_VERSION,
     sessionId: session.sessionId,
     activityIndex: allCompleted ? session.activities.length - 1 : firstIncomplete,
     activityState: freshActivityState(null),
@@ -115,9 +134,9 @@ export function createFormalHanziRunnerState(
 }
 
 export function startRunnerActivity(
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   startedAtMs: number,
-): FormalHanziRunnerState {
+): FormalSessionRunnerState {
   return state.phase !== 'ready'
     ? state
     : {
@@ -129,20 +148,20 @@ export function startRunnerActivity(
 
 export function currentRunnerExercise(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
-): SupportedHanziExercise {
+  state: FormalSessionRunnerState,
+): SupportedFormalExercise {
   const activity = session.activities[state.activityIndex];
-  if (!activity || !isSupportedHanziExercise(activity.exercise)) {
-    throw new Error('The current Session Activity is not supported by the Hanzi Runner.');
+  if (!activity || !isSupportedFormalExercise(activity.exercise)) {
+    throw new Error('The current Session Activity is not supported by the formal Runner.');
   }
   return activity.exercise;
 }
 
 export function toggleRunnerTile(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   tileId: string,
-): FormalHanziRunnerState {
+): FormalSessionRunnerState {
   if (state.phase !== 'answering') return state;
   const exercise = currentRunnerExercise(session, state);
   if (exercise.type !== 'word_build' && exercise.type !== 'sentence_order') return state;
@@ -161,20 +180,85 @@ export function toggleRunnerTile(
   };
 }
 
-export function recordRunnerAudioReplay(state: FormalHanziRunnerState): FormalHanziRunnerState {
+export function selectRunnerPinyinBuildOption(
+  session: FormalSessionCacheRecord,
+  state: FormalSessionRunnerState,
+  step: 'final' | 'initial' | 'tone',
+  optionId: string,
+): FormalSessionRunnerState {
+  if (state.phase !== 'answering') return state;
+  const exercise = currentRunnerExercise(session, state);
+  if (exercise.type !== 'pinyin_syllable_build') return state;
+  const selected = state.activityState.selectedTileIds;
+  const expectedLength = step === 'initial' ? 0 : step === 'final' ? 1 : 2;
+  if (selected.length !== expectedLength) return state;
+  const optionExists =
+    step === 'initial'
+      ? exercise.initialOptions.some((candidate) => candidate.optionId === optionId)
+      : step === 'final'
+        ? exercise.finalOptions.some((candidate) => candidate.optionId === optionId)
+        : exercise.toneOptions.some((candidate) => candidate.optionId === optionId);
+  if (!optionExists) throw new Error('The selected Pinyin part does not belong to this exercise.');
+  if (step === 'final') {
+    const selectedInitial = exercise.initialOptions.find(
+      (candidate) => candidate.optionId === selected[0],
+    );
+    const selectedFinal = exercise.finalOptions.find(
+      (candidate) => candidate.optionId === optionId,
+    );
+    if (
+      !selectedInitial ||
+      !selectedFinal ||
+      !isLegalPinyinCombination(selectedInitial.value, selectedFinal.value)
+    ) {
+      throw new Error('The selected initial and final are not a legal Pinyin combination.');
+    }
+  }
+  return {
+    ...state,
+    activityState: {
+      ...state.activityState,
+      selectedTileIds: [...selected, optionId],
+    },
+  };
+}
+
+export function resetRunnerSelection(state: FormalSessionRunnerState): FormalSessionRunnerState {
   if (state.phase !== 'answering') return state;
   return {
     ...state,
     activityState: {
       ...state.activityState,
-      hintLevel:
-        state.activityState.hintLevel === 'none' ? 'audio_repeat' : state.activityState.hintLevel,
-      replayCount: state.activityState.replayCount + 1,
+      selectedOptionId: null,
+      selectedTileIds: [],
     },
   };
 }
 
-export function requestRunnerHint(state: FormalHanziRunnerState): FormalHanziRunnerState {
+export function recordRunnerAudioPlayback(
+  state: FormalSessionRunnerState,
+  audioAssetKey: string,
+): FormalSessionRunnerState {
+  if (state.phase !== 'answering') return state;
+  const previousCount = state.activityState.audioPlayCounts[audioAssetKey] ?? 0;
+  return {
+    ...state,
+    activityState: {
+      ...state.activityState,
+      audioPlayCounts: {
+        ...state.activityState.audioPlayCounts,
+        [audioAssetKey]: previousCount + 1,
+      },
+      hintLevel:
+        previousCount > 0 && state.activityState.hintLevel === 'none'
+          ? 'audio_repeat'
+          : state.activityState.hintLevel,
+      replayCount: state.activityState.replayCount + (previousCount > 0 ? 1 : 0),
+    },
+  };
+}
+
+export function requestRunnerHint(state: FormalSessionRunnerState): FormalSessionRunnerState {
   return state.phase !== 'answering'
     ? state
     : {
@@ -185,8 +269,8 @@ export function requestRunnerHint(state: FormalHanziRunnerState): FormalHanziRun
 
 export function revealRunnerPinyin(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
-): FormalHanziRunnerState {
+  state: FormalSessionRunnerState,
+): FormalSessionRunnerState {
   if (state.phase !== 'answering') return state;
   const support = session.activities[state.activityIndex]?.pinyinSupport;
   if (!support?.allowReveal || support.presentation !== 'tap_to_reveal') return state;
@@ -196,15 +280,30 @@ export function revealRunnerPinyin(
   };
 }
 
-function localScore(exercise: SupportedHanziExercise, answer: AttemptAnswerV2): boolean {
+function localScore(exercise: SupportedFormalExercise, answer: AttemptAnswerV2): boolean {
   if ('optionId' in answer) {
-    if (exercise.type !== 'audio_to_glyph' && exercise.type !== 'glyph_to_image') {
+    if (
+      exercise.type === 'word_build' ||
+      exercise.type === 'sentence_order' ||
+      exercise.type === 'pinyin_syllable_build'
+    ) {
       throw new Error('An option answer cannot score an ordering exercise.');
     }
     if (!exercise.options.some((option) => option.optionId === answer.optionId)) {
       throw new Error('The selected option does not belong to this exercise.');
     }
+    if (exercise.type === 'glyph_to_pinyin') {
+      return exercise.acceptedOptionIds.includes(answer.optionId);
+    }
     return answer.optionId === exercise.correctOptionId;
+  }
+  if (exercise.type === 'pinyin_syllable_build') {
+    return (
+      answer.tileIds.length === 3 &&
+      answer.tileIds[0] === exercise.correctInitialOptionId &&
+      answer.tileIds[1] === exercise.correctFinalOptionId &&
+      answer.tileIds[2] === exercise.correctToneOptionId
+    );
   }
   if (exercise.type !== 'word_build' && exercise.type !== 'sentence_order') {
     throw new Error('A tile answer cannot score an option exercise.');
@@ -222,7 +321,7 @@ function localScore(exercise: SupportedHanziExercise, answer: AttemptAnswerV2): 
 
 function pinyinSupportForAttempt(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
 ): AttemptDraftV2['pinyinSupport'] {
   if (state.activityState.hintLevel === 'full_answer') return 'full_answer';
   if (state.activityState.pinyinRevealed) return 'pinyin_revealed';
@@ -234,10 +333,10 @@ function pinyinSupportForAttempt(
 
 export function submitRunnerAnswer(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   answer: AttemptAnswerV2,
   context: RunnerAttemptContext,
-): { attempt: AttemptDraftV2 | null; state: FormalHanziRunnerState } {
+): { attempt: AttemptDraftV2 | null; state: FormalSessionRunnerState } {
   if (state.phase !== 'answering') return { attempt: null, state };
   const exercise = currentRunnerExercise(session, state);
   const correct = localScore(exercise, answer);
@@ -284,16 +383,18 @@ export function submitRunnerAnswer(
   };
 }
 
-export function markRunnerAttemptPersisted(state: FormalHanziRunnerState): FormalHanziRunnerState {
+export function markRunnerAttemptPersisted(
+  state: FormalSessionRunnerState,
+): FormalSessionRunnerState {
   return state.phase !== 'persisting_attempt'
     ? state
     : { ...state, pendingAttemptId: null, phase: 'feedback' };
 }
 
 export function retryRunnerAnswer(
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   startedAtMs: number,
-): FormalHanziRunnerState {
+): FormalSessionRunnerState {
   if (state.phase !== 'feedback' || state.activityState.localCorrect !== false) return state;
   return {
     ...state,
@@ -311,9 +412,9 @@ export function retryRunnerAnswer(
 
 export function advanceRunner(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   startedAtMs: number,
-): FormalHanziRunnerState {
+): FormalSessionRunnerState {
   if (state.phase !== 'feedback' || state.activityState.localCorrect !== true) return state;
   const completedActivity = session.activities[state.activityIndex];
   if (!completedActivity) throw new Error('The completed Session Activity is missing.');
@@ -340,17 +441,17 @@ export function advanceRunner(
   };
 }
 
-export function markRunnerSyncPending(state: FormalHanziRunnerState): FormalHanziRunnerState {
+export function markRunnerSyncPending(state: FormalSessionRunnerState): FormalSessionRunnerState {
   return { ...state, phase: 'sync_pending' };
 }
 
-export function markRunnerCompleted(state: FormalHanziRunnerState): FormalHanziRunnerState {
+export function markRunnerCompleted(state: FormalSessionRunnerState): FormalSessionRunnerState {
   return { ...state, phase: 'completed' };
 }
 
 export function sessionRecordAfterAttempt(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
   nowIso: string,
 ): FormalSessionCacheRecord {
   const current = session.activities[state.activityIndex];
@@ -372,14 +473,14 @@ export function sessionRecordAfterAttempt(
 
 export function runnerProgress(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
 ): number {
   return state.completedActivityIds.length / session.activities.length;
 }
 
 export function runnerRemainingSeconds(
   session: FormalSessionCacheRecord,
-  state: FormalHanziRunnerState,
+  state: FormalSessionRunnerState,
 ): number {
   return session.activities
     .filter((activity) => !state.completedActivityIds.includes(activity.sessionActivityId))

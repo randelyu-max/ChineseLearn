@@ -815,5 +815,26 @@ replay path as Hanzi. Review Center resolves published Pinyin concepts into stab
 `tone` groups.
 
 The server capability is open, but old clients remain safe: Session Plan V2 includes Pinyin
-candidates only when the request declares `pinyin-exercises-v1`. The current mobile client does not
-declare it. Task 5.9P-C owns mobile Runner rendering and capability opt-in.
+candidates only when the request declares `pinyin-exercises-v1`. At the 5.9P-B checkpoint the
+mobile client did not declare it; Task 5.9P-C owned the later Runner rendering and capability
+opt-in recorded below.
+
+### Implementation checkpoint: 5.9P-C
+
+As of 2026-07-24, the mobile client declares `pinyin-exercises-v1` when it requests a new formal
+learn Session. The universal Runner is versioned as `formal-session-runner-v2` and accepts all ten
+released Hanzi/Pinyin Activity types. Six pure Pinyin adapters preserve the existing accessible
+exercise components while routing every answer through the same local checkpoint, immutable
+Attempt V2, persistent outbox, server reconciliation, retry, restart recovery, and Session
+completion flow.
+
+Formal Pinyin audio resolves only reviewed bundled assets. The Runner prefetches every required
+Pinyin clip once per immutable Activity `contentSha256`, permits offline replay, records repeat
+evidence only after local playback preparation succeeds, and exposes a retry state when playback
+or an asset binding fails. The app configuration continues to disable microphone permission,
+background recording, voice capture, and upload.
+
+The production Pinyin tab no longer renders six demos. It shows the current cached formal-Session
+Pinyin progress, recommends continuing Pinyin or reviewing an unfinished tone Activity, and starts
+the same `/session` route as Learn. Historical mastery presentation and the formal Review Center
+remain owned by 8.2A-H and 8.2B-R; the tab does not create a client-side planner.

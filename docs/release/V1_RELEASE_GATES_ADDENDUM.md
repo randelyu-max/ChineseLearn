@@ -10,7 +10,7 @@
 - [x] Session Plan V2 learn/review 与原子 Snapshot 物化（8.2C-C，2026-07-24）；
 - [x] 多 Lesson Attempts V2 与规范化 Evidence（8.2C-D，2026-07-24）；
 - [ ] 正式汉字 Runner；
-- [ ] 拼音持久化、评分、掌握度和复习；
+- [x] 拼音持久化、评分、掌握度和复习（5.9P-A/B/C，2026-07-24）；
 - [ ] 正式 Review Session 和移动端复习页；
 - [ ] 生产 Curriculum Release 可在空数据库导入；
 - [ ] App 内账号删除和 Server/Local 清理；

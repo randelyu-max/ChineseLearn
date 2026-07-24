@@ -25,6 +25,7 @@ export type PinyinToAudioPlaybackStatus = Readonly<{
 }>;
 
 type Props = {
+  disabled?: boolean;
   exercise: PinyinToAudioExerciseDefinition;
   onPlayOption: (optionId: string) => void;
   onRetryAnswer: () => void;
@@ -35,6 +36,7 @@ type Props = {
 };
 
 export function PinyinToAudioExercise({
+  disabled = false,
   exercise,
   onPlayOption,
   onRetryAnswer,
@@ -44,7 +46,7 @@ export function PinyinToAudioExercise({
   state,
 }: Props) {
   const compact = pinyinToAudioLayout(useWindowDimensions().width).columns === 1;
-  const answerLocked = state.status !== 'awaiting-answer';
+  const answerLocked = disabled || state.status !== 'awaiting-answer';
 
   return (
     <View style={styles.container}>

@@ -1,4 +1,5 @@
 import {
+  LearningExerciseV2Schema,
   learningExerciseV2Fixtures,
   type ActiveSessionData,
   type SessionActivitySnapshotV2,
@@ -16,9 +17,42 @@ const activityIds = [
   '53000000-0000-4000-8000-000000000002',
   '53000000-0000-4000-8000-000000000003',
   '53000000-0000-4000-8000-000000000004',
+  '53000000-0000-4000-8000-000000000005',
+  '53000000-0000-4000-8000-000000000006',
+  '53000000-0000-4000-8000-000000000007',
+  '53000000-0000-4000-8000-000000000008',
+  '53000000-0000-4000-8000-000000000009',
+  '53000000-0000-4000-8000-000000000010',
 ] as const;
 
-const supportedExercises = learningExerciseV2Fixtures.slice(0, 4);
+const supportedExercises = learningExerciseV2Fixtures.map((exercise) => {
+  if (exercise.type === 'audio_to_pinyin') {
+    return LearningExerciseV2Schema.parse({
+      ...exercise,
+      promptAudioAssetKey: '50000000-0000-4000-8000-000000000402',
+    });
+  }
+  if (exercise.type === 'pinyin_to_audio') {
+    const audio = [
+      ['50000000-0000-4000-8000-000000000403', 'ma4'],
+      ['50000000-0000-4000-8000-000000000401', 'ma2'],
+      ['50000000-0000-4000-8000-000000000402', 'ma3'],
+    ] as const;
+    return LearningExerciseV2Schema.parse({
+      ...exercise,
+      options: exercise.options.map((option, index) => ({
+        ...option,
+        audioAssetKey: audio[index]![0],
+        numbered: audio[index]![1],
+      })),
+    });
+  }
+  if (exercise.type === 'tone_choice') {
+    return LearningExerciseV2Schema.parse({ ...exercise, promptAudioAssetKey: null });
+  }
+  return exercise;
+});
+const hashCharacters = '123456789a';
 
 export const runnerActivities: SessionActivitySnapshotV2[] = supportedExercises.map(
   (exercise, position) => ({
@@ -29,25 +63,31 @@ export const runnerActivities: SessionActivitySnapshotV2[] = supportedExercises.
     exerciseType: exercise.type,
     contentRef: `release.lesson-${position % 2}.exercise-${position}`,
     contentVersion: 'closed-alpha-runner-v1',
-    contentSha256: `${position + 1}`.repeat(64),
+    contentSha256: hashCharacters[position]!.repeat(64),
     exercise,
     evidenceTargets: [
       {
         schemaVersion: 'evidence-target-v1',
         conceptType:
-          exercise.type === 'word_build'
-            ? 'word'
-            : exercise.type === 'sentence_order'
-              ? 'sentence'
-              : 'character',
+          exercise.type.includes('pinyin') || exercise.type === 'tone_choice'
+            ? 'pinyin'
+            : exercise.type === 'word_build'
+              ? 'word'
+              : exercise.type === 'sentence_order'
+                ? 'sentence'
+                : 'character',
         conceptId: `concept.runner.${position}`,
         skill: exercise.type,
         abilityAxis:
-          exercise.type === 'sentence_order'
-            ? 'sentence_reading'
-            : exercise.type === 'word_build'
-              ? 'word_reading'
-              : 'hanzi_recognition',
+          exercise.type === 'tone_choice'
+            ? 'tone_discrimination'
+            : exercise.type.includes('pinyin')
+              ? 'pinyin_recognition'
+              : exercise.type === 'sentence_order'
+                ? 'sentence_reading'
+                : exercise.type === 'word_build'
+                  ? 'word_reading'
+                  : 'hanzi_recognition',
         role: 'primary',
       },
     ],
@@ -81,7 +121,7 @@ export function runnerActiveData(
     humorPreference: 'light' as const,
     planningAlgorithmVersion: 'pinyin-session-planner-v1+session-materializer-v2',
     targetMinutes: 10,
-    estimatedSeconds: 120,
+    estimatedSeconds: 300,
     createdAt: RUNNER_NOW,
     activities: runnerActivities,
   };
@@ -116,6 +156,26 @@ export function correctAnswerAt(index: number) {
   if (!exercise) throw new Error('Runner fixture activity is missing.');
   if (exercise.type === 'audio_to_glyph' || exercise.type === 'glyph_to_image') {
     return { optionId: exercise.correctOptionId };
+  }
+  if (
+    exercise.type === 'audio_to_pinyin' ||
+    exercise.type === 'pinyin_to_audio' ||
+    exercise.type === 'pinyin_to_glyph' ||
+    exercise.type === 'tone_choice'
+  ) {
+    return { optionId: exercise.correctOptionId };
+  }
+  if (exercise.type === 'glyph_to_pinyin') {
+    return { optionId: exercise.acceptedOptionIds[0]! };
+  }
+  if (exercise.type === 'pinyin_syllable_build') {
+    return {
+      tileIds: [
+        exercise.correctInitialOptionId,
+        exercise.correctFinalOptionId,
+        exercise.correctToneOptionId,
+      ],
+    };
   }
   if (exercise.type === 'word_build' || exercise.type === 'sentence_order') {
     return { tileIds: [...exercise.correctTileOrder] };

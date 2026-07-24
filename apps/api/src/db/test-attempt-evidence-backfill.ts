@@ -14,16 +14,14 @@ const migrationNames = (await readdir(migrationsDirectory))
   .filter((name) => /^\d{4}_.+\.sql$/.test(name))
   .sort();
 const migration0010 = '0010_attempts_v2_normalized_evidence.sql';
-assert.equal(
-  migrationNames.at(-1),
-  migration0010,
-  'Backfill test expects 0010 to be the latest migration',
-);
+const migration0010Index = migrationNames.indexOf(migration0010);
+assert.notEqual(migration0010Index, -1, 'Backfill migration 0010 must exist');
+const migrationsBefore0010 = migrationNames.slice(0, migration0010Index);
 
 const pool = new Pool({ connectionString: databaseUrl, max: 1 });
 const client = await pool.connect();
 try {
-  for (const name of migrationNames.filter((candidate) => candidate !== migration0010)) {
+  for (const name of migrationsBefore0010) {
     await client.query(await readFile(resolve(migrationsDirectory, name), 'utf8'));
   }
 

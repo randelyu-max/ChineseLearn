@@ -19,15 +19,22 @@ import {
 } from './model';
 
 type Props = {
+  disabled?: boolean;
   exercise: ToneChoiceExerciseDefinition;
   onRetry: () => void;
   onSelectOption: (optionId: string) => void;
   state: ToneChoiceState;
 };
 
-export function ToneChoiceExercise({ exercise, onRetry, onSelectOption, state }: Props) {
+export function ToneChoiceExercise({
+  disabled = false,
+  exercise,
+  onRetry,
+  onSelectOption,
+  state,
+}: Props) {
   const compact = toneChoiceLayout(useWindowDimensions().width).columns === 1;
-  const optionsDisabled = state.status !== 'awaiting-answer';
+  const optionsDisabled = disabled || state.status !== 'awaiting-answer';
 
   return (
     <View style={styles.container}>

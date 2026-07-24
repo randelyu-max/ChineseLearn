@@ -121,3 +121,16 @@ The server capability is open, but Session Plan V2 requires the explicit
 to receive only the four known Hanzi types. No database migration was needed beyond the additive
 Task 5.9P-A domain. The next unique task is
 `5.9P-C — Pinyin integration into the universal Runner`.
+
+## Task 5.9P-C completion checkpoint
+
+Task 5.9P-C completed on 2026-07-24. The mobile client now opts into
+`pinyin-exercises-v1`; `formal-session-runner-v2` executes the six formal Pinyin types beside the
+four Hanzi types through the same persistent Attempt V2/outbox/recovery/completion path. Bundled
+Pinyin audio is prefetched and cached by immutable Activity content hash, remains offline, and
+fails closed with retry when an asset is not locally bound. The Pinyin tab is a formal Session
+entry and active-Session progress view rather than a six-demo page.
+
+No API contract, learning algorithm, database migration, dependency, or lockfile changed. The next
+and only dependency-scoped task is `8.2A-H — Review Center pagination, ordering, and performance
+hardening`.

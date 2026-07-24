@@ -1,3 +1,5 @@
+import { PINYIN_EXERCISES_CLIENT_CAPABILITY } from '@hanziquest/contracts';
+
 import type { FormalSessionCacheRecord, OfflineStore } from '../offline-storage/model';
 import type { FormalSessionApi } from '../formal-session/api';
 import { cacheRecordFromPlanResult, applyLifecycleState } from '../formal-session/model';
@@ -103,6 +105,7 @@ export async function enterLearnSession(input: {
     idempotencyKey: input.idempotencyKey(),
     intent: 'learn',
     targetMinutes: Math.max(3, Math.min(20, Math.round(input.targetMinutes))),
+    clientCapabilities: [PINYIN_EXERCISES_CLIENT_CAPABILITY],
   });
   if (!planned.ok) {
     return {

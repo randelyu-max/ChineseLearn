@@ -8,10 +8,11 @@ import {
   radii,
   spacing,
 } from '@hanziquest/design-tokens';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { useNetworkState } from 'expo-network';
 import * as Crypto from 'expo-crypto';
 import * as Speech from 'expo-speech';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { AudioButton, ErrorState, PrimaryButton, ProgressBar, Screen } from '@/components/ui';
@@ -21,25 +22,37 @@ import { getOfflineStore, type FormalSessionCacheRecord } from '@/features/offli
 
 import {
   advanceRunner,
-  createFormalHanziRunnerState,
+  createFormalSessionRunnerState,
   currentRunnerExercise,
   markRunnerAttemptPersisted,
   markRunnerCompleted,
   markRunnerSyncPending,
-  recordRunnerAudioReplay,
+  recordRunnerAudioPlayback,
+  resetRunnerSelection,
   requestRunnerHint,
   revealRunnerPinyin,
   retryRunnerAnswer,
   runnerProgress,
   runnerRemainingSeconds,
+  selectRunnerPinyinBuildOption,
   sessionRecordAfterAttempt,
   startRunnerActivity,
   submitRunnerAnswer,
   toggleRunnerTile,
-  type FormalHanziRunnerState,
-  type SupportedHanziExercise,
+  type FormalSessionRunnerState,
+  type SupportedFormalExercise,
 } from './model';
 import { completeFormalSession } from './completion';
+import {
+  FormalPinyinActivityRenderer,
+  type FormalAudioState,
+} from './FormalPinyinActivityRenderer';
+import {
+  clearPinyinAudioPrefetchCache,
+  prefetchPinyinSessionAudio,
+  resolvePinyinAudioSource,
+} from './pinyin-audio';
+import { isFormalPinyinExercise } from './pinyin-adapters';
 
 type Props = {
   initialSession: FormalSessionCacheRecord;
@@ -48,9 +61,23 @@ type Props = {
 
 type FailedPersistence = Readonly<{
   attempt: AttemptDraftV2;
-  runnerState: FormalHanziRunnerState;
+  runnerState: FormalSessionRunnerState;
   session: FormalSessionCacheRecord;
 }>;
+
+type SupportedHanziExercise = Extract<
+  SupportedFormalExercise,
+  { type: 'audio_to_glyph' | 'glyph_to_image' | 'sentence_order' | 'word_build' }
+>;
+
+function isHanziExercise(exercise: SupportedFormalExercise): exercise is SupportedHanziExercise {
+  return (
+    exercise.type === 'audio_to_glyph' ||
+    exercise.type === 'glyph_to_image' ||
+    exercise.type === 'word_build' ||
+    exercise.type === 'sentence_order'
+  );
+}
 
 function speechText(exercise: SupportedHanziExercise): string {
   if (exercise.type === 'audio_to_glyph') {
@@ -79,14 +106,22 @@ function optionAnswer(exercise: SupportedHanziExercise, optionId: string): Attem
 export function FormalSessionRunner({ initialSession, userId }: Props) {
   const network = useNetworkState();
   const persistenceLock = useRef(false);
+  const pinyinAudioPlayer = useAudioPlayer();
+  const pinyinAudioPlayerStatus = useAudioPlayerStatus(pinyinAudioPlayer);
   const [session, setSession] = useState(initialSession);
-  const [runner, setRunner] = useState<FormalHanziRunnerState>(() => {
-    const created = createFormalHanziRunnerState(initialSession);
+  const [runner, setRunner] = useState<FormalSessionRunnerState>(() => {
+    const created = createFormalSessionRunnerState(initialSession);
     return created.phase === 'ready' ? startRunnerActivity(created, performance.now()) : created;
   });
   const [notice, setNotice] = useState<string | null>(null);
   const [fatalMessage, setFatalMessage] = useState<string | null>(null);
   const [failedPersistence, setFailedPersistence] = useState<FailedPersistence | null>(null);
+  const [activeAudioAssetKey, setActiveAudioAssetKey] = useState<string | null>(null);
+  const [audioPreparation, setAudioPreparation] = useState<FormalAudioState>({
+    failedAssetKey: null,
+    phase: 'loading',
+    playingAssetKey: null,
+  });
   const exercise = useMemo(() => {
     try {
       return currentRunnerExercise(session, runner);
@@ -94,6 +129,88 @@ export function FormalSessionRunner({ initialSession, userId }: Props) {
       return null;
     }
   }, [runner, session]);
+
+  async function preparePinyinAudio(clearCache = false): Promise<void> {
+    if (clearCache) clearPinyinAudioPrefetchCache();
+    setAudioPreparation({
+      failedAssetKey: null,
+      phase: 'loading',
+      playingAssetKey: null,
+    });
+    try {
+      const results = await prefetchPinyinSessionAudio(session);
+      const missing = results.flatMap((result) => result.missingAssetKeys)[0] ?? null;
+      setAudioPreparation({
+        failedAssetKey: missing,
+        phase: missing ? 'error' : 'ready',
+        playingAssetKey: null,
+      });
+    } catch {
+      setAudioPreparation({
+        failedAssetKey: activeAudioAssetKey,
+        phase: 'error',
+        playingAssetKey: null,
+      });
+    }
+  }
+
+  useEffect(() => {
+    let active = true;
+    void prefetchPinyinSessionAudio(session)
+      .then((results) => {
+        if (!active) return;
+        const missing = results.flatMap((result) => result.missingAssetKeys)[0] ?? null;
+        setAudioPreparation({
+          failedAssetKey: missing,
+          phase: missing ? 'error' : 'ready',
+          playingAssetKey: null,
+        });
+      })
+      .catch(() => {
+        if (!active) return;
+        setAudioPreparation({
+          failedAssetKey: null,
+          phase: 'error',
+          playingAssetKey: null,
+        });
+      });
+    return () => {
+      active = false;
+    };
+  }, [session]);
+
+  async function playPinyinAudio(assetKey: string): Promise<void> {
+    const source = resolvePinyinAudioSource(assetKey);
+    if (source === null) {
+      setAudioPreparation({
+        failedAssetKey: assetKey,
+        phase: 'error',
+        playingAssetKey: null,
+      });
+      return;
+    }
+    try {
+      pinyinAudioPlayer.pause();
+      if (activeAudioAssetKey !== assetKey) {
+        pinyinAudioPlayer.replace(source);
+        setActiveAudioAssetKey(assetKey);
+      }
+      await pinyinAudioPlayer.seekTo(0);
+      pinyinAudioPlayer.play();
+      setAudioPreparation({
+        failedAssetKey: null,
+        phase: 'ready',
+        playingAssetKey: assetKey,
+      });
+      setRunner((current) => recordRunnerAudioPlayback(current, assetKey));
+    } catch {
+      setAudioPreparation({
+        failedAssetKey: assetKey,
+        phase: 'error',
+        playingAssetKey: null,
+      });
+    }
+  }
 
   async function persistAnswer(answer: AttemptAnswerV2): Promise<void> {
     if (persistenceLock.current) return;
@@ -239,6 +356,19 @@ export function FormalSessionRunner({ initialSession, userId }: Props) {
     runner.phase === 'persisting_attempt' ||
     runner.phase === 'sync_pending' ||
     runner.phase === 'completing_session';
+  const formalAudioState: FormalAudioState = pinyinAudioPlayerStatus.error
+    ? {
+        failedAssetKey: activeAudioAssetKey,
+        phase: 'error',
+        playingAssetKey: null,
+      }
+    : pinyinAudioPlayerStatus.playing && activeAudioAssetKey
+      ? {
+          failedAssetKey: null,
+          phase: 'playing',
+          playingAssetKey: activeAudioAssetKey,
+        }
+      : audioPreparation;
 
   return (
     <Screen scrollable style={styles.screen} testID="formal-session-runner">
@@ -268,136 +398,170 @@ export function FormalSessionRunner({ initialSession, userId }: Props) {
 
       <View style={styles.exerciseCard}>
         <Text style={styles.instruction}>{exercise.instructionZh}</Text>
-        {exercise.type === 'audio_to_glyph' ? (
-          <AudioButton
-            disabled={busy}
-            label={runner.activityState.replayCount === 0 ? '播放声音' : '再听一次'}
-            onPress={() => {
-              Speech.speak(speechText(exercise), { language: 'zh-CN', rate: 0.8 });
-              setRunner((current) => recordRunnerAudioReplay(current));
-            }}
+        {isFormalPinyinExercise(exercise) ? (
+          <FormalPinyinActivityRenderer
+            audioState={formalAudioState}
+            busy={busy || runner.phase !== 'answering'}
+            exercise={exercise}
+            onPlayAudio={(assetKey) => void playPinyinAudio(assetKey)}
+            onRequestHint={() => setRunner((current) => requestRunnerHint(current))}
+            onResetBuild={() => setRunner((current) => resetRunnerSelection(current))}
+            onRetryAnswer={() =>
+              setRunner((current) => retryRunnerAnswer(current, performance.now()))
+            }
+            onRetryAudio={() => void preparePinyinAudio(true)}
+            onSelectBuildOption={(step, optionId) =>
+              setRunner((current) =>
+                selectRunnerPinyinBuildOption(session, current, step, optionId),
+              )
+            }
+            onSubmitAnswer={(answer) => void persistAnswer(answer)}
+            runner={runner}
           />
-        ) : null}
-        {exercise.type === 'glyph_to_image' ? (
-          <Text accessibilityLabel={exercise.promptAccessibilityLabel} style={styles.hanzi}>
-            {exercise.promptGlyph}
-          </Text>
-        ) : null}
-        {exercise.type === 'word_build' || exercise.type === 'sentence_order' ? (
-          <Text style={styles.prompt}>{exercise.promptZh}</Text>
-        ) : null}
-
-        {exercise.type === 'audio_to_glyph' || exercise.type === 'glyph_to_image' ? (
-          <View accessibilityRole="radiogroup" style={styles.optionGrid}>
-            {exercise.options.map((option) => {
-              const selected = runner.activityState.selectedOptionId === option.optionId;
-              return (
-                <Pressable
-                  accessibilityLabel={option.accessibilityLabel}
-                  aria-checked={selected}
-                  accessibilityRole="radio"
-                  accessibilityState={{ checked: selected, disabled: busy }}
-                  disabled={busy || runner.phase !== 'answering'}
-                  key={option.optionId}
-                  onPress={() => void persistAnswer(optionAnswer(exercise, option.optionId))}
-                  style={({ pressed }) => [
-                    styles.option,
-                    selected && styles.optionSelected,
-                    pressed && styles.optionPressed,
-                  ]}
-                >
-                  <Text
-                    style={exercise.type === 'audio_to_glyph' ? styles.optionGlyph : styles.body}
-                  >
-                    {'glyph' in option ? option.glyph : option.accessibilityLabel}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-        ) : (
+        ) : isHanziExercise(exercise) ? (
           <>
-            <View accessibilityLabel="当前答案" style={styles.answerArea}>
-              {runner.activityState.selectedTileIds.length === 0 ? (
-                <Text style={styles.muted}>按顺序选择下面的字词</Text>
-              ) : (
-                runner.activityState.selectedTileIds.map((tileId) => {
-                  const tile = exercise.tiles.find((candidate) => candidate.tileId === tileId);
-                  return (
-                    <Text key={tileId} style={styles.answerTile}>
-                      {tile && 'glyph' in tile ? tile.glyph : tile?.text}
-                    </Text>
+            {exercise.type === 'audio_to_glyph' ? (
+              <AudioButton
+                disabled={busy}
+                label={
+                  (runner.activityState.audioPlayCounts[exercise.promptAudioAssetKey] ?? 0) === 0
+                    ? '播放声音'
+                    : '再听一次'
+                }
+                onPress={() => {
+                  Speech.speak(speechText(exercise), { language: 'zh-CN', rate: 0.8 });
+                  setRunner((current) =>
+                    recordRunnerAudioPlayback(current, exercise.promptAudioAssetKey),
                   );
-                })
-              )}
-            </View>
-            <View style={styles.tileGrid}>
-              {exercise.tiles.map((tile) => (
-                <Pressable
-                  accessibilityLabel={tile.accessibilityLabel}
-                  accessibilityRole="button"
-                  accessibilityState={{
-                    disabled: busy || runner.phase !== 'answering',
-                    selected: runner.activityState.selectedTileIds.includes(tile.tileId),
-                  }}
-                  disabled={busy || runner.phase !== 'answering'}
-                  key={tile.tileId}
-                  onPress={() =>
-                    setRunner((current) => toggleRunnerTile(session, current, tile.tileId))
-                  }
-                  style={({ pressed }) => [styles.tile, pressed && styles.optionPressed]}
-                >
-                  <Text style={styles.tileText}>{'glyph' in tile ? tile.glyph : tile.text}</Text>
-                </Pressable>
-              ))}
-            </View>
-            <PrimaryButton
-              disabled={
-                busy ||
-                runner.phase !== 'answering' ||
-                runner.activityState.selectedTileIds.length !== exercise.tiles.length
-              }
-              label="提交答案"
-              onPress={() =>
-                void persistAnswer({ tileIds: [...runner.activityState.selectedTileIds] })
-              }
-            />
-          </>
-        )}
+                }}
+              />
+            ) : null}
+            {exercise.type === 'glyph_to_image' ? (
+              <Text accessibilityLabel={exercise.promptAccessibilityLabel} style={styles.hanzi}>
+                {exercise.promptGlyph}
+              </Text>
+            ) : null}
+            {exercise.type === 'word_build' || exercise.type === 'sentence_order' ? (
+              <Text style={styles.prompt}>{exercise.promptZh}</Text>
+            ) : null}
 
-        {support?.presentation === 'tap_to_reveal' && !runner.activityState.pinyinRevealed ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => setRunner((current) => revealRunnerPinyin(session, current))}
-            style={styles.hintButton}
-          >
-            <Text style={styles.hintButtonText}>显示拼音辅助</Text>
-          </Pressable>
-        ) : null}
-        {showSupportNotice ? (
-          <Text accessibilityLiveRegion="polite" style={styles.supportNotice}>
-            拼音辅助已开启；本题会按辅助状态计算学习证据。
-          </Text>
-        ) : null}
-        {exercise.visualHintZh && runner.activityState.hintLevel === 'none' ? (
-          <Pressable
-            accessibilityRole="button"
-            disabled={busy}
-            onPress={() => setRunner((current) => requestRunnerHint(current))}
-            style={styles.hintButton}
-          >
-            <Text style={styles.hintButtonText}>给我一个提示</Text>
-          </Pressable>
-        ) : null}
-        {exercise.visualHintZh && runner.activityState.hintLevel === 'visual_hint' ? (
-          <Text accessibilityLiveRegion="polite" style={styles.supportNotice}>
-            {exercise.visualHintZh}
-          </Text>
+            {exercise.type === 'audio_to_glyph' || exercise.type === 'glyph_to_image' ? (
+              <View accessibilityRole="radiogroup" style={styles.optionGrid}>
+                {exercise.options.map((option) => {
+                  const selected = runner.activityState.selectedOptionId === option.optionId;
+                  return (
+                    <Pressable
+                      accessibilityLabel={option.accessibilityLabel}
+                      aria-checked={selected}
+                      accessibilityRole="radio"
+                      accessibilityState={{ checked: selected, disabled: busy }}
+                      disabled={busy || runner.phase !== 'answering'}
+                      key={option.optionId}
+                      onPress={() => void persistAnswer(optionAnswer(exercise, option.optionId))}
+                      style={({ pressed }) => [
+                        styles.option,
+                        selected && styles.optionSelected,
+                        pressed && styles.optionPressed,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          exercise.type === 'audio_to_glyph' ? styles.optionGlyph : styles.body
+                        }
+                      >
+                        {'glyph' in option ? option.glyph : option.accessibilityLabel}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+            ) : (
+              <>
+                <View accessibilityLabel="当前答案" style={styles.answerArea}>
+                  {runner.activityState.selectedTileIds.length === 0 ? (
+                    <Text style={styles.muted}>按顺序选择下面的字词</Text>
+                  ) : (
+                    runner.activityState.selectedTileIds.map((tileId) => {
+                      const tile = exercise.tiles.find((candidate) => candidate.tileId === tileId);
+                      return (
+                        <Text key={tileId} style={styles.answerTile}>
+                          {tile && 'glyph' in tile ? tile.glyph : tile?.text}
+                        </Text>
+                      );
+                    })
+                  )}
+                </View>
+                <View style={styles.tileGrid}>
+                  {exercise.tiles.map((tile) => (
+                    <Pressable
+                      accessibilityLabel={tile.accessibilityLabel}
+                      accessibilityRole="button"
+                      accessibilityState={{
+                        disabled: busy || runner.phase !== 'answering',
+                        selected: runner.activityState.selectedTileIds.includes(tile.tileId),
+                      }}
+                      disabled={busy || runner.phase !== 'answering'}
+                      key={tile.tileId}
+                      onPress={() =>
+                        setRunner((current) => toggleRunnerTile(session, current, tile.tileId))
+                      }
+                      style={({ pressed }) => [styles.tile, pressed && styles.optionPressed]}
+                    >
+                      <Text style={styles.tileText}>
+                        {'glyph' in tile ? tile.glyph : tile.text}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <PrimaryButton
+                  disabled={
+                    busy ||
+                    runner.phase !== 'answering' ||
+                    runner.activityState.selectedTileIds.length !== exercise.tiles.length
+                  }
+                  label="提交答案"
+                  onPress={() =>
+                    void persistAnswer({ tileIds: [...runner.activityState.selectedTileIds] })
+                  }
+                />
+              </>
+            )}
+
+            {support?.presentation === 'tap_to_reveal' && !runner.activityState.pinyinRevealed ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => setRunner((current) => revealRunnerPinyin(session, current))}
+                style={styles.hintButton}
+              >
+                <Text style={styles.hintButtonText}>显示拼音辅助</Text>
+              </Pressable>
+            ) : null}
+            {showSupportNotice ? (
+              <Text accessibilityLiveRegion="polite" style={styles.supportNotice}>
+                拼音辅助已开启；本题会按辅助状态计算学习证据。
+              </Text>
+            ) : null}
+            {exercise.visualHintZh && runner.activityState.hintLevel === 'none' ? (
+              <Pressable
+                accessibilityRole="button"
+                disabled={busy}
+                onPress={() => setRunner((current) => requestRunnerHint(current))}
+                style={styles.hintButton}
+              >
+                <Text style={styles.hintButtonText}>给我一个提示</Text>
+              </Pressable>
+            ) : null}
+            {exercise.visualHintZh && runner.activityState.hintLevel === 'visual_hint' ? (
+              <Text accessibilityLiveRegion="polite" style={styles.supportNotice}>
+                {exercise.visualHintZh}
+              </Text>
+            ) : null}
+          </>
         ) : null}
       </View>
 
-      {incorrectFeedback ? (
+      {incorrectFeedback && isHanziExercise(exercise) ? (
         <View accessibilityLiveRegion="assertive" style={styles.feedback}>
           <Text style={styles.feedbackTitle}>再试一次，你正在找到规律</Text>
           <Text style={styles.body}>看看提示，慢慢来。</Text>
