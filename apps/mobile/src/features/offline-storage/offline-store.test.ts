@@ -107,8 +107,10 @@ describe('versioned offline store', () => {
         { broken: true },
       ],
     });
-    expect(migrated.schemaVersion).toBe(2);
+    expect(migrated.schemaVersion).toBe(3);
     expect(Object.keys(migrated.attempts)).toEqual([attempt.attemptId]);
+    expect(migrated.formalSessions).toEqual({});
+    expect(migrated.legacySessions).toEqual({});
   });
 
   it('persists content and cursors and supports export/clear recovery', async () => {
@@ -127,7 +129,7 @@ describe('versioned offline store', () => {
       payload: { lesson: '家' },
     });
     await expect(store.getSyncCursor('attempts')).resolves.toBe('cursor-2');
-    expect(JSON.parse(await store.exportForRecovery()).schemaVersion).toBe(2);
+    expect(JSON.parse(await store.exportForRecovery()).schemaVersion).toBe(3);
     await store.clearAll();
     await expect(store.getSyncCursor('attempts')).resolves.toBeNull();
   });
@@ -138,6 +140,7 @@ describe('SQLite migration plan', () => {
     expect(SQLITE_MIGRATIONS.map(({ from, to }) => [from, to])).toEqual([
       [0, 1],
       [1, 2],
+      [2, 3],
     ]);
     expect(SQLITE_MIGRATIONS.at(-1)?.to).toBe(SQLITE_SCHEMA_VERSION);
     const sql = SQLITE_MIGRATIONS.map((migration) => migration.sql)
@@ -148,6 +151,9 @@ describe('SQLite migration plan', () => {
       'local_session_snapshots',
       'local_attempt_outbox',
       'local_sync_cursors',
+      'local_formal_session_snapshots',
+      'local_attempt_outbox_v2',
+      'local_formal_session_quarantine',
     ]) {
       expect(sql).toContain(table);
     }

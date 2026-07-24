@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "db:migrate": "tsx src/db/migrate.ts",
-    "db:test": "tsx src/db/test-database.ts"
+    "db:test": "tsx src/db/test-database.ts",
+    "db:test:attempt-backfill": "tsx src/db/test-attempt-evidence-backfill.ts"
   },
   "dependencies": {
     "@better-auth/expo": "1.6.24",

@@ -1,0 +1,99 @@
+manifest_version: 1
+baseline:
+  completed_task: '8.2D-B'
+  next_task: '5.9P-A'
+  product_stage: 'closed_alpha'
+  ai_runtime: false
+  account_model: 'single_user'
+execution_rules:
+  one_task_at_a_time: true
+  auto_push: false
+  destructive_git_commands: false
+  rewrite_existing_migrations: false
+supersedes:
+  - 'old sequence 8.2A -> 8.2B -> 9.5R'
+tasks:
+  - id: '8.2C-A'
+    file: 'docs/tasks/post-8.2A/08.2C-A-canonical-session-activity-snapshot.md'
+    priority: 'P0'
+    depends_on: ['8.2A']
+  - id: '8.2C-B'
+    file: 'docs/tasks/post-8.2A/08.2C-B-session-lifecycle-active-session.md'
+    priority: 'P0'
+    depends_on: ['8.2C-A']
+  - id: '8.2C-C'
+    file: 'docs/tasks/post-8.2A/08.2C-C-session-plan-v2-learn-review.md'
+    priority: 'P0'
+    depends_on: ['8.2C-B']
+  - id: '8.2C-D'
+    file: 'docs/tasks/post-8.2A/08.2C-D-attempts-v2-normalized-evidence.md'
+    priority: 'P0'
+    depends_on: ['8.2C-C']
+  - id: '8.2D-A'
+    file: 'docs/tasks/post-8.2A/08.2D-A-mobile-session-data-layer.md'
+    priority: 'P0'
+    depends_on: ['8.2C-D']
+  - id: '8.2D-B'
+    file: 'docs/tasks/post-8.2A/08.2D-B-universal-hanzi-session-runner.md'
+    priority: 'P0'
+    depends_on: ['8.2D-A']
+  - id: '5.9P-A'
+    file: 'docs/tasks/post-8.2A/05.9P-A-pinyin-persistence-domain.md'
+    priority: 'P0'
+    depends_on: ['8.2D-B']
+  - id: '5.9P-B'
+    file: 'docs/tasks/post-8.2A/05.9P-B-pinyin-server-scoring-evidence.md'
+    priority: 'P0'
+    depends_on: ['5.9P-A', '8.2C-D']
+  - id: '5.9P-C'
+    file: 'docs/tasks/post-8.2A/05.9P-C-pinyin-universal-runner.md'
+    priority: 'P0'
+    depends_on: ['5.9P-B']
+  - id: '8.2A-H'
+    file: 'docs/tasks/post-8.2A/08.2A-H-review-center-hardening.md'
+    priority: 'P1'
+    depends_on: ['5.9P-B']
+  - id: '8.2B-R'
+    file: 'docs/tasks/post-8.2A/08.2B-R-mobile-review-center.md'
+    priority: 'P0'
+    depends_on: ['8.2A-H', '8.2D-B', '5.9P-C']
+  - id: '8.3D'
+    file: 'docs/tasks/post-8.2A/08.3D-diagnostic-productization.md'
+    priority: 'P1'
+    depends_on: ['8.2D-B']
+  - id: '8.3E'
+    file: 'docs/tasks/post-8.2A/08.3E-production-curriculum-release-pipeline.md'
+    priority: 'P0'
+    depends_on: ['5.9P-A', '8.2C-C']
+  - id: '8.3C'
+    file: 'docs/tasks/post-8.2A/08.3C-age-neutral-content-humor-integration.md'
+    priority: 'P1'
+    depends_on: ['8.3E']
+  - id: '6.5W'
+    file: 'docs/tasks/post-8.2A/06.5W-writing-signature-scope-hardening.md'
+    priority: 'P1'
+    depends_on: ['6.4W']
+  - id: '8.3A'
+    file: 'docs/tasks/post-8.2A/08.3A-account-deletion-data-export.md'
+    priority: 'P0'
+    depends_on: ['8.2C-D']
+  - id: '8.3B'
+    file: 'docs/tasks/post-8.2A/08.3B-runtime-localization.md'
+    priority: 'P0'
+    depends_on: ['8.2B-R']
+  - id: '8.3T'
+    file: 'docs/tasks/post-8.2A/08.3T-user-timezone-calendar-boundaries.md'
+    priority: 'P1'
+    depends_on: ['8.2B-R']
+  - id: '9.5R'
+    file: 'docs/tasks/post-8.2A/09.5R-final-release-audit.md'
+    priority: 'P0'
+    depends_on:
+      - '8.2B-R'
+      - '8.3D'
+      - '8.3E'
+      - '8.3C'
+      - '6.5W'
+      - '8.3A'
+      - '8.3B'
+      - '8.3T'

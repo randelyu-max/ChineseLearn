@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { Text } from 'react-native';
 
@@ -13,6 +14,10 @@ import {
 } from '@/features/audio-to-glyph';
 
 export default function AudioToGlyphShowcaseScreen() {
+  return __DEV__ ? <AudioToGlyphDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function AudioToGlyphDevelopmentScreen() {
   const [state, setState] = useState(() => createAudioToGlyphState(0));
   const [attemptCreated, setAttemptCreated] = useState(false);
 

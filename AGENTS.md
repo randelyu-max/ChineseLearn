@@ -10,6 +10,12 @@ Before changing a feature, read `docs/PRODUCT_TECH_DESIGN.md`, the relevant ADRs
 and the nearest directory-specific `AGENTS.md`. Work in one focused task from
 `docs/CODEX_IMPLEMENTATION_PLAN.md`; do not silently revive superseded tasks.
 
+For work after Task 8.2A, also read `CODEX_START_AFTER_8_2A.md`,
+`AGENTS_ADDENDUM_POST_8_2A.md`, the Post-8.2A design/remediation addenda, ADR 0004-0006, and the
+specific task card under `docs/tasks/post-8.2A/`. The manifest order is dependency order. Keep each
+task independently reviewable and do not combine its migration or acceptance evidence with the
+next task.
+
 ## V1 architecture rules
 
 1. One Better Auth `public."user"` row maps one-to-one to `public.profiles`; private records use
@@ -35,6 +41,17 @@ and the nearest directory-specific `AGENTS.md`. Work in one focused task from
 13. Clients cannot directly modify mastery, rewards, publication state, or other
     server-authoritative records.
 14. Do not add future-AI interfaces, entitlements, configuration, or empty implementations to V1.
+15. A formal Session is a server-created, versioned, bounded, immutable snapshot. It may contain
+    multiple lessons and domains and must not discover answers later through a single `lesson_id`.
+16. Answer keys may appear only inside an authenticated, already-created bounded Session for
+    offline feedback. Catalog, Review Center, and pre-start previews must not expose them; the
+    server always re-scores submitted answers.
+17. Review Center is a read-only preview. Starting review must use the same authoritative
+    `session-plan` service with `intent: review`; do not build a second planner.
+18. Demo and showcase routes are not formal learning-loop entry points and cannot satisfy release
+    acceptance.
+19. Never mark Closed Alpha, release readiness, or a release gate green using historical evidence
+    after code or migrations have changed. Record only commands and devices actually exercised.
 
 ## Privacy and safety
 
@@ -69,6 +86,10 @@ behavior documentation, and fixtures for strong, struggling, returning, and offl
 - Mutations use idempotency keys.
 - Database changes require ordered migrations, constraints, cross-user RLS tests, and rollback
   notes.
+- Applied migrations are immutable. Post-8.2A work begins with
+  `0007_session_activity_snapshots.sql`; never edit or renumber `0001`-`0006`.
+- Application clients may select their own Session activity snapshots but may not directly insert,
+  update, or delete them.
 - Offline progress uses a persistent outbox; never an in-memory-only queue.
 - Reward and inventory changes use immutable idempotent server transactions.
 
@@ -100,6 +121,10 @@ pnpm build
 Run focused checks during implementation and the required full checks before completion. Never
 claim an unrun test passed. Do not disable tests, add broad ignores, use `any` to hide errors, or
 rewrite unrelated files.
+
+Do not automatically commit, push, deploy, publish curriculum, or run destructive remote database
+operations. These actions require explicit user authorization. Local PostgreSQL tests must use
+disposable data and preserve forward-only migration history.
 
 ## Completion report
 

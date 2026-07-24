@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text } from 'react-native';
 
@@ -19,6 +20,10 @@ const demoVisuals: Record<string, string> = {
 };
 
 export default function GlyphToImageShowcaseScreen() {
+  return __DEV__ ? <GlyphToImageDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function GlyphToImageDevelopmentScreen() {
   const [state, setState] = useState(() => createGlyphToImageState(0));
   return (
     <Screen scrollable>

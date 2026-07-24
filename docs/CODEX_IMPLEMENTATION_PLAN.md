@@ -1,7 +1,10 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 8.2A restores the omitted Review Center read model/API. Task 8.2B remains pending,
-and the candidate must not be promoted until Task 9.5R reruns the complete release audit.
+Status: Task 8.2A restored only the Review Center read model/API. The old direct Task 8.2B to
+Task 9.5R sequence is **SUPERSEDED** by
+[`docs/addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md`](addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md)
+and `TASK_MANIFEST_POST_8_2A.yaml`. The current stage is Closed Alpha, not a public V1 release
+candidate. Task 8.2D-B is complete; the next dependency-scoped task is 5.9P-A.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -15,10 +18,18 @@ Task 3.1 BKT, 3.2 memory stability, 3.3 confusion risk, and 3.4 session planning
 age-neutral learning algorithms. Their persistence adapters are not accepted because the current
 database still uses `child_id`.
 
+The historical cards and results through Task 8.2A remain accepted evidence. Their old continuation
+`8.2B → 9.5R` must not be executed directly. Continue with the independently accepted Post-8.2A
+cards beginning at Task 8.2C-A.
+
 ## Required order
 
 P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
-5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R (complete) → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.2A → 8.2B → 9.5R.
+5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R (complete) → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.2A (complete).
+
+Post-8.2A order:
+
+`8.2C-A → 8.2C-B → 8.2C-C → 8.2C-D → 8.2D-A → 8.2D-B → 5.9P-A → 5.9P-B → 5.9P-C → 8.2A-H → 8.2B-R → 8.3D → 8.3E → 8.3C → 6.5W → 8.3A → 8.3B → 8.3T → 9.5R`
 
 ## Task cards
 
@@ -184,16 +195,16 @@ Each Pinyin task uses static reviewed content, no AI/network at exercise time, a
 and focused unit/accessibility tests. Rollback removes the task's additive schema/export/UI while
 preserving previous Pinyin tasks.
 
-| Task            | 目标                                                         | 非目标                     | 依赖                | 文件范围                       | 数据变化                 | 测试要求与验收                                                                                                                          |
-| --------------- | ------------------------------------------------------------ | -------------------------- | ------------------- | ------------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------- |
-| 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI                      | 3.5R contract       | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture |
+| Task            | 目标                                                         | 非目标                     | 依赖                | 文件范围                       | 数据变化                 | 测试要求与验收                                                                                                                           |
+| --------------- | ------------------------------------------------------------ | -------------------------- | ------------------- | ------------------------------ | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 5.1P (complete) | Pinyin initials/finals/syllables/tones domain and validation | No UI                      | 3.5R contract       | curriculum/contracts/validator | `pinyin-content-v1` only | Implemented 2026-07-23: legal/illegal combinations, deterministic tone normalization, five-tone table, references, and approved fixture  |
 | 5.2P (complete) | `audio_to_pinyin`                                            | No speech upload           | 5.1P                | mobile feature/tests           | Attempts only later      | Implemented 2026-07-23: deterministic tone distractors, bundled/replayable MP3, supportive retry, responsive and screen-reader semantics |
 | 5.3P (complete) | `pinyin_to_audio`                                            | No pronunciation scoring   | 5.2P                | mobile feature/tests           | None                     | Implemented 2026-07-23: module-scope preload, per-clip replay/error recovery, bundled assets, stable correct clip, accessible controls   |
-| 5.4P (complete) | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: tone-aware distractors, required homophone context, stable target mapping, accessible responsive glyph choices  |
-| 5.5P (complete) | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: explicit accepted readings, required polyphone context, priority alternate reading, on-demand supportive hints  |
+| 5.4P (complete) | `pinyin_to_glyph`                                            | No translation dependency  | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: tone-aware distractors, required homophone context, stable target mapping, accessible responsive glyph choices   |
+| 5.5P (complete) | `glyph_to_pinyin`                                            | No always-on ruby text     | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: explicit accepted readings, required polyphone context, priority alternate reading, on-demand supportive hints   |
 | 5.6P (complete) | `tone_choice`                                                | No dialect judgment        | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: deterministic five-tone table, neutral-tone target, stable mapping, accessible choices, supportive retry         |
 | 5.7P (complete) | `pinyin_syllable_build`                                      | No free text IME           | 5.1P                | mobile feature/tests           | None                     | Implemented 2026-07-23: ordered tap controls, legal initial/final filtering, canonical tone marks, reset/retry, accessible completion    |
-| 5.8P (complete) | Adaptive Pinyin display and fading                           | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests            | Support preference/state | Implemented 2026-07-23: versioned staged fade, immediate recovery, one-activity interruption, profile preference, UI/evidence agreement |
+| 5.8P (complete) | Adaptive Pinyin display and fading                           | No hidden global heuristic | 3.6R, prior P tasks | engine/mobile/tests            | Support preference/state | Implemented 2026-07-23: versioned staged fade, immediate recovery, one-activity interruption, profile preference, UI/evidence agreement  |
 
 ## Writing task series
 
@@ -201,11 +212,11 @@ All writing tasks operate only on the user's own Chinese name, normalize coordin
 strokes local by default, never authenticate/verify identity, never imitate a real person, and
 never call AI. Each task needs unit, local persistence, accessibility, and privacy assertions.
 
-| Task | 目标                                                | 非目标                                   | 依赖       | 文件范围                 | 数据变化                           | 测试要求与验收                                             | 回滚                              |
-| ---- | --------------------------------------------------- | ---------------------------------------- | ---------- | ------------------------ | ---------------------------------- | ---------------------------------------------------------- | --------------------------------- |
-| 6.1W (complete) | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload                        | 2.4R       | mobile writing/storage   | Local strokes                      | Implemented 2026-07-23: normalized trace, resize-safe SVG, undo/clear/replay, per-user Web/SQLite local drafts, bounded dense input | Remove route/local table          |
-| 6.2W (complete) | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Implemented 2026-07-23: licensed offline 王家豪 fixture, ordered start/direction guide, observe/trace/free modes, unsupported fallback | Remove lesson layer/assets        |
-| 6.3W (complete) | Deterministic clear/compact/leaning/flowing styles  | No AI or celebrity imitation             | 6.2W       | pure transform module/UI | Selected style metadata            | Implemented 2026-07-23: versioned pure transforms, reproducible bounded output, preserved stroke/timing order, own-name-only preview | Remove transforms/style field     |
+| Task            | 目标                                                | 非目标                                   | 依赖       | 文件范围                 | 数据变化                           | 测试要求与验收                                                                                                                                                       | 回滚                              |
+| --------------- | --------------------------------------------------- | ---------------------------------------- | ---------- | ------------------------ | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
+| 6.1W (complete) | Vector canvas and normalized `StrokePoint`/`Stroke` | No scoring/upload                        | 2.4R       | mobile writing/storage   | Local strokes                      | Implemented 2026-07-23: normalized trace, resize-safe SVG, undo/clear/replay, per-user Web/SQLite local drafts, bounded dense input                                  | Remove route/local table          |
+| 6.2W (complete) | Standard stroke order, tracing to free writing      | No signature style                       | 6.1W       | curriculum/mobile        | Static stroke assets               | Implemented 2026-07-23: licensed offline 王家豪 fixture, ordered start/direction guide, observe/trace/free modes, unsupported fallback                               | Remove lesson layer/assets        |
+| 6.3W (complete) | Deterministic clear/compact/leaning/flowing styles  | No AI or celebrity imitation             | 6.2W       | pure transform module/UI | Selected style metadata            | Implemented 2026-07-23: versioned pure transforms, reproducible bounded output, preserved stroke/timing order, own-name-only preview                                 | Remove transforms/style field     |
 | 6.4W (complete) | Local save and self-consistency feedback            | No forensic verification/cloud raw trace | 6.3W, 2.2R | local store/summary API  | Server metadata/count/summary only | Implemented 2026-07-23: local rolling baseline and persistent raw-free outbox, deterministic supportive feedback, idempotent RLS metadata API, trigger-owned summary | Disable sync, retain local export |
 
 ## Humor task series
@@ -214,11 +225,11 @@ Humor is static editorial curriculum with `off | light | playful` preference (`l
 neutral fallback, no AI/network, no humiliation, identity stereotypes, false etymology, or changed
 answers.
 
-| Task | 目标                                              | 非目标                       | 依赖       | 文件范围             | 数据变化                | 测试要求与验收                                         | 回滚                          |
-| ---- | ------------------------------------------------- | ---------------------------- | ---------- | -------------------- | ----------------------- | ------------------------------------------------------ | ----------------------------- |
-| 7.1H (complete) | Humor schema and validator for six approved types | No content generation        | 5.1P       | curriculum/validator | Content metadata        | Implemented 2026-07-23: versioned bundled human-editorial schema, six types, exact target/answer and neutral fallback checks, release review and deterministic safety gates | Remove additive fields/rules  |
-| 7.2H (complete) | Profile humor preference                          | No personalization profiling | 7.1H, 2.4R | profile/mobile       | Existing `humor_preference` | Implemented 2026-07-23: existing `light` default and strict update endpoint retained; age-neutral mobile control added; pure bundled selector is deterministic offline, fails closed when unavailable, and maps `off` to neutral unconditionally | Default to off/remove control |
-| 7.3H (complete) | Human-authored reviewed humor content             | No runtime rewrite or generation | 7.2H       | curriculum/assets    | `humor-content-v1` version `1.0.0` | Implemented 2026-07-23: six published bundled items approved by 于永, stable IDs, simplified/traditional targets and answers, exact neutral fallbacks, release validation in local command and CI | Unpublish humor variants      |
+| Task            | 目标                                              | 非目标                           | 依赖       | 文件范围             | 数据变化                           | 测试要求与验收                                                                                                                                                                                                                                   | 回滚                          |
+| --------------- | ------------------------------------------------- | -------------------------------- | ---------- | -------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| 7.1H (complete) | Humor schema and validator for six approved types | No content generation            | 5.1P       | curriculum/validator | Content metadata                   | Implemented 2026-07-23: versioned bundled human-editorial schema, six types, exact target/answer and neutral fallback checks, release review and deterministic safety gates                                                                      | Remove additive fields/rules  |
+| 7.2H (complete) | Profile humor preference                          | No personalization profiling     | 7.1H, 2.4R | profile/mobile       | Existing `humor_preference`        | Implemented 2026-07-23: existing `light` default and strict update endpoint retained; age-neutral mobile control added; pure bundled selector is deterministic offline, fails closed when unavailable, and maps `off` to neutral unconditionally | Default to off/remove control |
+| 7.3H (complete) | Human-authored reviewed humor content             | No runtime rewrite or generation | 7.2H       | curriculum/assets    | `humor-content-v1` version `1.0.0` | Implemented 2026-07-23: six published bundled items approved by 于永, stable IDs, simplified/traditional targets and answers, exact neutral fallbacks, release validation in local command and CI                                                | Unpublish humor variants      |
 
 ### 8.0 — Historical incomplete release audit
 
@@ -238,6 +249,7 @@ runtime checks were run. The Review tab still displays a later-task placeholder 
 authenticated read API, so the release decision remained red. This historical audit does not own
 Review Center implementation. See `docs/release/V1_RELEASE_CHECKLIST.md`; Task 9.5R supersedes this
 incomplete audit after 8.2A and 8.2B are accepted.
+
 - **回滚方式：** Do not promote candidate; restore previous deployment/database snapshot.
 
 ### 8.2A — Review Center read model and API
@@ -263,7 +275,130 @@ incomplete audit after 8.2A and 8.2B are accepted.
 - **回滚方式：** Remove the route/service/contract and documentation additions; no database
   rollback is required.
 
+### 8.2C-B — Session lifecycle and Active Session API
+
+- **状态：** Complete on 2026-07-24; next task is 8.2C-C.
+- **目标：** Provide one authoritative, idempotent, cross-device active Session lifecycle per
+  user.
+- **实现：** Versioned contracts and authenticated routes for active/start/complete/abandon;
+  migration `0008` enforces server timestamps, legal transitions, one active Session per user,
+  immutable idempotency events, and forced RLS.
+- **兼容：** Existing V1 plans remain readable. Legacy completion requires an accepted Attempt;
+  V2 completion requires evidence for every persisted Activity. The planner and mobile runtime are
+  not switched here.
+- **实际验证：** Frozen install, format, 8-package lint/typecheck/test/build, 414 tests,
+  content/runtime boundary scans, 8 static migrations, PostgreSQL 17.10 migration/RLS/concurrency
+  integration, Expo Web export of 22 routes, and `git diff --check` passed.
+- **回滚：** Disable lifecycle and Session creation routes while retaining additive migration data
+  and immutable audit events.
+
+### 8.2C-C — Session Plan V2 learn/review
+
+- **状态：** Complete on 2026-07-24; next task is 8.2C-D.
+- **目标：** Materialize executable, immutable multi-source Activity Snapshots for authoritative
+  learn and review plans.
+- **实现：** Strict V2 request/result contracts; authoritative published curriculum and due-review
+  reads; pure-engine planning with fixed seed; four-Hanzi-type capability gate; atomic Session and
+  Activity materialization; immutable idempotency receipts for planned and empty outcomes.
+- **兼容：** The V1 route branch remains available. `nothing_due` and
+  `insufficient_safe_content` create no Session or Activity. Migration `0009` is additive and
+  leaves migrations `0001`–`0008` unchanged.
+- **实际验证：** Frozen install, format, 8-package lint/typecheck/test/build, 83 test files and
+  421 tests, content/runtime boundary scans, 9 static migrations, fresh PostgreSQL 17.10
+  migration/RLS/concurrency/atomicity integration, Expo Web export of 22 routes, and
+  `git diff --check` passed.
+- **风险：** Mobile does not consume V2 snapshots until 8.2D-A/B; Attempts V2 evidence is pending
+  8.2C-D; Pinyin candidates remain deliberately gated; production curriculum import remains 8.3E.
+- **回滚：** Disable the V2 route branch and materialization function while retaining immutable
+  event receipts and snapshots for auditability; do not delete migration data.
+
+### 8.2C-D — Attempts V2 and normalized Evidence
+
+- **状态：** Complete on 2026-07-24; next task is 8.2D-A.
+- **目标：** Score bounded offline Attempts from immutable multi-Lesson Session Activities and
+  normalize every Evidence Target into an authoritative replay row.
+- **实现：** Strict `attempts-batch-request/response-v2`; server scoring by
+  `sessionActivityId`; immutable per-attempt selected/expected values; batch and Attempt
+  idempotency; normalized multi-target quality rows; stable Skill/Review replay without JSONB
+  target scans; completed/abandoned rejection.
+- **迁移：** Additive `0010_attempts_v2_normalized_evidence.sql` keeps legacy Attempt columns,
+  adds forced-RLS `attempt_evidence` and immutable batch receipts, and idempotently backfills
+  legacy rows without changing effective quality.
+- **版本决定：** Evidence uses `exercise-quality-v1+pinyin-evidence-v1`. A dependency defect found
+  during repeated PostgreSQL tests bumped Session materialization to
+  `pinyin-session-planner-v1+session-materializer-v2`, which admits only closing candidates with
+  predicted success at least `0.90`.
+- **实际验证：** Frozen install; format; 8-package lint/typecheck/test/build; 84 test files and 430
+  tests; content/runtime scans; 10 static migrations; PostgreSQL 17.10 fresh migration/RLS/
+  concurrency/terminal-state integration, including four consecutive full DB runs; independent
+  0001–0009 → 0010 multi-target backfill equivalence; Expo Web export of 22 routes; and
+  `git diff --check`.
+- **风险：** Mobile still submits V1 until 8.2D-A; Pinyin scoring remains gated until 5.9P-B;
+  legacy columns remain for compatibility and require a later reviewed cleanup decision.
+- **回滚：** Disable only the V2 route branch and retain immutable Attempts/Evidence/receipts.
+  Continue V1 compatibility reads; do not drop `0010` data or rewrite migration history.
+
+### 8.2D-A — Mobile formal Session data layer and recovery
+
+- **状态：** Complete on 2026-07-24; next task is 8.2D-B.
+- **目标：** Fetch, validate, cache, recover, reconcile, and sync a formal V2 Session without
+  introducing the Runner UI.
+- **实现：** A strict Session API client covers active/plan/start/complete/abandon; local schema
+  version 3 stores per-user V2 headers and immutable Activity Snapshots separately from legacy
+  V1/Demo data; the persistent V2 outbox references `sessionActivityId`; recovery reconciles local
+  and server state, syncs before replacement, preserves rejected/unsynced events, quarantines only
+  corrupt records, and invalidates active/learn/review read models on terminal lifecycle events.
+- **版本决定：** No server contract or learning algorithm changed. Local recovery/export schema
+  is version 3, cache records are `formal-session-cache-v2`, and outbox records are
+  `formal-attempt-outbox-v2`.
+- **兼容：** Web v2 documents migrate into isolated legacy buckets. SQLite migrates additively
+  from 2 to 3. Demo/V1 Attempts never enter the V2 sync path. Account-scoped reads and
+  `clearUser` prevent cross-account cache display.
+- **实际验证：** Frozen-lockfile install; mobile lint/typecheck and 35 files/170 tests; full
+  format, 8-package lint/typecheck/test/build with 87 files/448 tests; no-AI, portable backend,
+  V1 boundary and content gates; 10 static PostgreSQL migrations; and Expo Web export of 22
+  routes all passed.
+- **风险：** SQLite migration behavior is statically validated and shares the tested storage
+  contract, but native-device process-death and disk-corruption exercise remains a release gate.
+  The formal Runner is intentionally not wired into navigation until 8.2D-B.
+- **回滚：** Stop invoking the formal Session data layer and retain the version-3 local tables and
+  recovery export for forward repair. Do not map legacy Demo records into V2 or delete pending
+  outbox evidence.
+
+### 8.2D-B — Universal Hanzi Session Runner
+
+- **状态：** Complete on 2026-07-24; next task is 5.9P-A.
+- **目标：** Connect the production Learn entry to a single formal Runner for the four released
+  Hanzi exercise types while preserving server-authoritative scoring and offline recovery.
+- **实现：** Home now enters `/session`, which recovers an active Session or requests a learn plan.
+  The shared Runner handles `audio_to_glyph`, `glyph_to_image`, `word_build`, and
+  `sentence_order`; exposes progress, remaining work, hints, retries, Pinyin-support state,
+  supportive feedback, and completion; atomically persists every local Attempt with its Session
+  checkpoint before best-effort V2 outbox sync; and reconciles terminal server state before
+  refreshing learn/review read models. Local/server score mismatches emit only a safe telemetry
+  code. Demo and showcase routes remain development-only and redirect away in production.
+- **版本决定：** Runner state is `formal-hanzi-runner-v1`; no contract, migration, lockfile, or
+  learning-engine version changed. Only the four already-released Hanzi capabilities are accepted.
+- **兼容：** Existing V1/Demo storage remains isolated. A cached formal Session resumes at the
+  first incomplete Activity, pending/rejected Attempts are retained, duplicate submit is blocked,
+  and authentication expiry returns to sign-in without fabricating completion.
+- **实际验证：** Frozen dependency tree; mobile lint/typecheck and 39 files/183 tests; real
+  PostgreSQL 17 migration plus integration suite; full format, 8-package lint/typecheck/test/build
+  with 91 files/461 tests; no-AI, portable-backend, V1 boundary, content, and 10 static migration
+  gates; Expo Web export of 23 routes; and `git diff --check`.
+- **风险：** Published Activity Snapshots currently carry image asset keys without a production
+  asset resolver, so the glyph-to-image Runner preserves the accessible label but cannot yet show
+  a production image. Pinyin display text is not fabricated when absent from the snapshot.
+  Physical-device process-death, speech, disk-failure, and account-switch testing remain release
+  audit work.
+- **回滚：** Restore Home navigation to its previous placeholder while retaining formal cache,
+  immutable Attempts, and outbox records for recovery. Do not delete pending evidence or rewrite
+  migrations.
+
 ### 8.2B — Mobile Review Center
+
+> **SUPERSEDED:** Do not execute this historical card. Its replacement is Task 8.2B-R after the
+> canonical Session, Attempts V2, universal Runner, Pinyin persistence, and Review hardening tasks.
 
 - **状态：** Pending explicit approval after 8.2A completion.
 - **目标：** Replace the Review tab placeholder with accessible summary, groups, states, paging,
@@ -275,6 +410,9 @@ incomplete audit after 8.2A and 8.2B are accepted.
 - **回滚方式：** Restore the placeholder route while retaining the read-only API.
 
 ### 9.5R — Complete V1 release audit rerun
+
+> **SUPERSEDED SEQUENCE:** The audit task remains required, but it may run only at the end of the
+> Post-8.2A manifest, not directly after historical Task 8.2B.
 
 - **状态：** Pending 8.2A and 8.2B.
 - **目标：** Rerun the complete V1 candidate audit and replace historical 8.0 evidence with current

@@ -8,6 +8,7 @@ import { attemptsBatchRoutes } from './routes/attempts-batch.js';
 import { profileRoutes } from './routes/profile.js';
 import { reviewCenterRoutes } from './routes/review-center.js';
 import { sessionPlanRoutes } from './routes/session-plan.js';
+import { sessionRoutes } from './routes/sessions.js';
 import { signaturePracticeRoutes } from './routes/signature-practice.js';
 
 export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool) {
@@ -27,6 +28,7 @@ export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool
   app.route('/api/review-center', reviewCenterRoutes(auth, pool));
   app.route('/api/attempts-batch', attemptsBatchRoutes(auth, pool));
   app.route('/api/session-plan', sessionPlanRoutes(auth, pool));
+  app.route('/api/sessions', sessionRoutes(auth, pool));
   app.route('/api/signature-practice', signaturePracticeRoutes(auth, pool));
   app.notFound((context) => context.json({ code: 'not_found' }, 404));
   return app;

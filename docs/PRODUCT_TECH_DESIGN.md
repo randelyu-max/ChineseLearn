@@ -1,5 +1,10 @@
 # HanziQuest V1 产品与技术设计基线
 
+> **Post-8.2A 基线：** 本文件记录截至 Task 8.2A 的已接受设计。后续工作的权威增量设计是
+> [`docs/addenda/PRODUCT_TECH_DESIGN_ADDENDUM_POST_8_2A.md`](addenda/PRODUCT_TECH_DESIGN_ADDENDUM_POST_8_2A.md)
+> 及 ADR 0004-0006。旧版直接执行 8.2B/9.5R 的顺序与增量设计冲突时，以 Post-8.2A
+> 整改顺序为准。
+
 状态：Task 8.2A 只读复习中心 API 已完成；8.2B 移动端和 9.5R 发布审计复跑待执行
 
 目标用户：会说或听得懂一些中文、但不熟悉汉字阅读和书写的 13 岁以上海外华裔青少年及成人
@@ -457,6 +462,19 @@ AI 生成、法律或法证声明均不在 V1 范围。
 练习次数和四项汇总。事件以 `(user_id, idempotency_key)` 去重并在项目行锁下串行处理；数据库
 触发器从不可变事件生成权威汇总，应用角色没有直接修改汇总的权限。三个私人表均强制 RLS，
 另一用户的项目、事件和汇总对当前用户不可见。停用同步即可回滚应用行为，本机轨迹与导出仍保留。
+
+### 8.12 正式 Session Activity V2 基础
+
+Task 8.2C-A 新增 `learning-exercise-v2`、`session-activity-v2` 和
+`session-plan-snapshot-v2`，可以固定多 Lesson 活动、十种汉字/拼音题型、内容版本与 SHA-256、
+拼音支持决策、静态幽默引用以及规范化 Evidence Target。题目答案只存在于登录用户已经创建且
+最多 20 题的 Session 快照内；目录、Review 预览和开始前页面不得返回答案，服务端仍是最终评分
+权威。
+
+PostgreSQL `learning_session_activities` 通过 Session/user 复合外键、连续位置边界、最小 JSON
+形状检查、更新拒绝触发器和强制 RLS 保存不可变 Activity。应用角色只能读取自己的快照，不能
+直接插入、更新或删除。旧 V1 Session 与单 Lesson 评分链继续可读，但没有被伪装为 V2；运行时
+切换、生命周期和受控 Session 创建分别属于后续任务。
 
 ## 9. 隐私与安全
 

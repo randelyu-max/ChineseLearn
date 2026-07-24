@@ -46,4 +46,38 @@ describe('attempts-batch route boundary', () => {
       error: { code: 'ATTEMPTS_BATCH_INVALID' },
     });
   });
+
+  it('strictly rejects malformed V2 batches before PostgreSQL', async () => {
+    const pool = { connect: vi.fn() } as unknown as Pool;
+    const response = await createApp(config, auth, pool).request('/api/attempts-batch', {
+      body: JSON.stringify({
+        schemaVersion: 'attempts-batch-request-v2',
+        sessionId: '90000000-0000-4000-8000-000000000002',
+        idempotencyKey: 'attempts-v2:90000000-0000-4000-8000-000000000002',
+        attempts: [
+          {
+            attemptId: '90000000-0000-4000-8000-000000000003',
+            sessionActivityId: '90000000-0000-4000-8000-000000000004',
+            answer: { optionId: 'option.one' },
+            responseMs: 800,
+            hintLevel: 'none',
+            pinyinSupport: 'none',
+            replayCount: 0,
+            retryCount: 0,
+            occurredAt: '2026-07-24T12:00:00Z',
+            offlineSequence: 1,
+            candidates: ['server-authoritative-only'],
+          },
+        ],
+      }),
+      headers: { 'content-type': 'application/json' },
+      method: 'POST',
+    });
+    expect(response.status).toBe(400);
+    expect(pool.connect).not.toHaveBeenCalled();
+    await expect(response.json()).resolves.toMatchObject({
+      apiVersion: 'v1',
+      error: { code: 'ATTEMPTS_BATCH_INVALID' },
+    });
+  });
 });

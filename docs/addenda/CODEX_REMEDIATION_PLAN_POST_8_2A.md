@@ -1,0 +1,101 @@
+# HanziQuest V1 — Post-8.2A Codex 整改计划
+
+本计划只补充 8.2A 后的执行顺序。已经完成的 Task 3.1–8.2A 保留历史记录，不重新执行，除非回归测试失败。
+
+## 1. 被取代的旧顺序
+
+以下顺序被取代：
+
+```text
+8.2A → 8.2B → 9.5R
+```
+
+原因：复习页面依赖正式 Session Snapshot、Review Intent、Session 生命周期和通用 Runner；这些基础目前尚未贯通。
+
+## 2. 新的强制顺序
+
+| 顺序 | Task                                         | 优先级 | 发布性质   |
+| ---: | -------------------------------------------- | ------ | ---------- |
+|    1 | 8.2C-A — 规范化 Session Activity 与 Snapshot | P0     | 核心闭环   |
+|    2 | 8.2C-B — Session 生命周期与 Active Session   | P0     | 核心闭环   |
+|    3 | 8.2C-C — Session Plan V2 learn/review        | P0     | 核心闭环   |
+|    4 | 8.2C-D — Attempts V2 与规范化 Evidence       | P0     | 核心闭环   |
+|    5 | 8.2D-A — 移动端正式 Session 数据层           | P0     | 核心闭环   |
+|    6 | 8.2D-B — 通用汉字 Session Runner             | P0     | 核心闭环   |
+|    7 | 5.9P-A — 拼音持久化领域                      | P0     | 核心产品   |
+|    8 | 5.9P-B — 拼音服务端评分与 Evidence           | P0     | 核心产品   |
+|    9 | 5.9P-C — 拼音接入 Runner                     | P0     | 核心产品   |
+|   10 | 8.2A-H — Review Center 硬化                  | P1     | 稳定性     |
+|   11 | 8.2B-R — 移动端复习中心                      | P0     | 核心产品   |
+|   12 | 8.3D — 诊断产品化                            | P1     | V1 完整性  |
+|   13 | 8.3E — 生产课程发布与导入                    | P0     | 发布阻塞   |
+|   14 | 8.3C — 13+ 内容与幽默接入                    | P1     | 产品质量   |
+|   15 | 6.5W — 姓名书写覆盖与签名范围硬化            | P1     | 产品承诺   |
+|   16 | 8.3A — 账号删除和数据导出                    | P0     | 发布阻塞   |
+|   17 | 8.3B — 真实本地化                            | P0     | 发布阻塞   |
+|   18 | 8.3T — 时区与日历边界                        | P1     | 数据正确性 |
+|   19 | 9.5R — 完整发布审计                          | P0     | 最终门禁   |
+
+## 3. 阶段门槛
+
+### Gate A — 正式汉字学习闭环
+
+完成 8.2C-A 到 8.2D-B 后，必须通过：
+
+```text
+首页正式 learn session
+→ 多 Lesson activity 可执行
+→ offline attempt
+→ server scoring
+→ evidence/mastery/review
+→ session complete
+```
+
+此时可进入内部 Alpha，但不能公开发布。
+
+### Gate B — 拼音和复习闭环
+
+完成 5.9P-A 到 8.2B-R 后，必须通过：
+
+```text
+拼音 session
+→ tone/pinyin mastery
+→ review center
+→ review session
+→ due count refresh
+```
+
+此时可进入受控 Beta。
+
+### Gate C — Public V1
+
+完成 8.3D、8.3E、8.3C、6.5W、8.3A、8.3B、8.3T 和 9.5R，且完成签名构建与真机验证后，才允许推广。
+
+## 4. 任务纪律
+
+- 每次只执行一个 Task 文件。
+- 任何 Task 不得顺便实现下一个 Task 的 UI、数据库或 API。
+- 合同版本变更必须明确兼容与废弃策略。
+- 数据库只用新迁移；不修改 0001–0006。
+- 未确认远程环境前不执行远程迁移、重置或清理。
+- 每项任务完成后更新本计划状态，但不删除历史。
+- 不自动 push。
+
+## 5. 执行进度
+
+- `8.2C-A`：2026-07-24 完成并通过合同、迁移、RLS、全仓回归和构建门禁。
+- `8.2C-B`：2026-07-24 完成并通过 lifecycle、Active Session、幂等、并发、跨用户
+  隔离、PostgreSQL 17.10 动态测试和全仓门禁。
+- `8.2C-C`：2026-07-24 完成 Session Plan V2 learn/review、多来源不可变 Snapshot、
+  Pinyin capability gate、空结果幂等回执和原子物化，并通过 PostgreSQL 17.10 动态测试与
+  全仓门禁。
+- `8.2C-D`：2026-07-24 完成基于不可变 Activity Snapshot 的 Attempts V2 服务端评分、
+  多目标规范化 Evidence、历史幂等回填、稳定重放、终态拒绝和跨用户 RLS，并修正高混淆
+  收尾候选造成的非确定性空计划。
+- `8.2D-A`：2026-07-24 完成正式 V2 Session API client、按用户隔离的 Web/SQLite
+  schema v3 缓存、引用 `sessionActivityId` 的持久 Outbox、跨重启/离线恢复、服务器终态与
+  本地冲突协调、损坏 Snapshot 单独隔离和读模型失效。
+- `8.2D-B`：2026-07-24 完成正式学习入口和四种汉字题型的通用 Runner；每次作答先原子
+  写入 Attempt 与 Session 检查点，再进行可恢复 Outbox 同步；完成时先同步再请求服务器终态，
+  并隔离开发演示路由。专项测试、真实 PostgreSQL 集成、全仓门禁和 23 路由 Expo 导出通过。
+- 下一项：`5.9P-A — 拼音持久化领域模型`。

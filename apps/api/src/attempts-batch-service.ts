@@ -3,6 +3,7 @@ import type {
   AttemptsBatchRequest,
   LearningExercise,
 } from '@hanziquest/contracts';
+import { ATTEMPT_EVIDENCE_V1_ALGORITHM_VERSION } from '@hanziquest/contracts';
 import type { PoolClient } from 'pg';
 
 import {
@@ -29,7 +30,7 @@ type InsertedAttemptRow = {
 type ReplayAttemptRow = {
   correct: boolean;
   device_event_at: Date;
-  evidence_weight: string;
+  effective_quality: string;
   hint_level: number;
   id: string;
   offline_sequence: string;
@@ -94,31 +95,47 @@ async function replayConceptState(
   );
   const history = await client.query<ReplayAttemptRow>(
     `select
-       id,
-       correct,
-       device_event_at,
-       evidence_weight::text,
-       hint_level,
-       coalesce(metadata ->> 'offlineSequence', '0') as offline_sequence,
-       coalesce(metadata ->> 'pinyinSupport', 'none') as pinyin_support
-     from public.attempts
-     where user_id = $1
-       and concept_type = $2
-       and skill = $3
-       and (
-         concept_id = $4
-         or coalesce(metadata -> 'targetConceptIds', '[]'::jsonb) @> to_jsonb(array[$4::text])
-       )
+       a.id,
+       a.correct,
+       a.device_event_at,
+       ae.effective_quality::text,
+       a.hint_level,
+       coalesce(
+         a.offline_sequence,
+         case
+           when a.metadata ->> 'offlineSequence' ~ '^[0-9]+$'
+             then (a.metadata ->> 'offlineSequence')::bigint
+         end,
+         0
+       )::text as offline_sequence,
+       coalesce(a.pinyin_support, a.metadata ->> 'pinyinSupport', 'none') as pinyin_support
+     from public.attempt_evidence ae
+     join public.attempts a on a.id = ae.attempt_id and a.user_id = ae.user_id
+     where ae.user_id = $1
+       and ae.concept_type = $2
+       and ae.skill = $3
+       and ae.concept_id = $4
      order by
-       device_event_at,
-       coalesce((metadata ->> 'offlineSequence')::bigint, 0),
-       id`,
+       a.device_event_at,
+       coalesce(
+         a.offline_sequence,
+         case
+           when a.metadata ->> 'offlineSequence' ~ '^[0-9]+$'
+             then (a.metadata ->> 'offlineSequence')::bigint
+         end,
+         0
+       ),
+       a.id,
+       ae.concept_type,
+       ae.concept_id,
+       ae.skill,
+       ae.ability_axis`,
     [userId, evaluation.conceptType, evaluation.skill, conceptId],
   );
   const replayAttempts: ReplayAttempt[] = history.rows.map((row) => ({
     correct: row.correct,
     deviceEventAt: row.device_event_at,
-    evidenceWeight: Number(row.evidence_weight),
+    evidenceWeight: Number(row.effective_quality),
     hintLevel: row.hint_level,
     id: row.id,
     offlineSequence: Number(row.offline_sequence),
@@ -205,8 +222,11 @@ async function insertAttempt(
     `insert into public.attempts (
        offline_event_id, session_id, user_id, concept_type, concept_id, skill,
        activity_type, correct, response_ms, hint_level, selected_value, expected_value,
-       device_event_at, evidence_weight, metadata
-     ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+       device_event_at, evidence_weight, metadata, offline_sequence, replay_count, retry_count,
+       pinyin_support
+     ) values (
+       $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19
+     )
      on conflict (user_id, offline_event_id) do nothing
      returning id, correct, evidence_weight::text, received_at`,
     [
@@ -225,9 +245,45 @@ async function insertAttempt(
       attempt.occurredAt,
       evaluation.evidenceWeight,
       { ...evaluation.metadata, targetConceptIds: evaluation.targetConceptIds },
+      attempt.offlineSequence,
+      attempt.replayCount,
+      attempt.retryCount,
+      attempt.pinyinSupport ?? 'none',
     ],
   );
   return inserted.rows[0] ?? null;
+}
+
+async function insertEvidence(
+  client: PoolClient,
+  userId: string,
+  attemptId: string,
+  evaluation: EvaluatedAttempt,
+): Promise<void> {
+  for (const [evidenceIndex, conceptId] of evaluation.targetConceptIds.entries()) {
+    await client.query(
+      `insert into public.attempt_evidence (
+         attempt_id, user_id, evidence_index, concept_type, concept_id, skill, ability_axis,
+         target_role, correct, base_quality, support_multiplier, effective_quality,
+         algorithm_version
+       ) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        attemptId,
+        userId,
+        evidenceIndex,
+        evaluation.conceptType,
+        conceptId,
+        evaluation.skill,
+        evaluation.abilityAxis,
+        evidenceIndex === 0 ? 'primary' : 'secondary',
+        evaluation.correct,
+        evaluation.baseQuality,
+        evaluation.supportMultiplier,
+        evaluation.evidenceWeight,
+        ATTEMPT_EVIDENCE_V1_ALGORITHM_VERSION,
+      ],
+    );
+  }
 }
 
 export async function processAttemptsBatch(
@@ -254,7 +310,7 @@ export async function processAttemptsBatch(
   );
   const results: AttemptBatchResult[] = [];
   for (const attempt of ordered) {
-    if (sessionRow.status === 'completed' || sessionRow.status === 'abandoned') {
+    if (sessionRow.status !== 'in_progress') {
       results.push({
         attemptId: attempt.attemptId,
         rejectionCode: 'SESSION_NOT_ACTIVE',
@@ -291,6 +347,7 @@ export async function processAttemptsBatch(
       });
       continue;
     }
+    await insertEvidence(client, userId, inserted.id, evaluation);
     for (const conceptId of evaluation.targetConceptIds) {
       await replayConceptState(client, userId, conceptId, evaluation);
     }

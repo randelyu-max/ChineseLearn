@@ -3,27 +3,30 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 
 import { AuthProvider, useAuth } from '@/features/auth';
+import { syncFormalAttemptsWithApi } from '@/features/formal-session/sync-with-api';
 import { getOfflineStore, syncPendingAttemptsWithApi } from '@/features/offline-storage';
+import { DEVELOPMENT_ONLY_ROUTES } from '@/features/session-runner';
 
 function RootNavigator() {
   const { state } = useAuth();
   const network = useNetworkState();
   useEffect(() => {
-    if (state.status !== 'ready' || !network.isConnected) return;
+    const userId = state.userId;
+    if (state.status !== 'ready' || !userId || !network.isConnected) return;
     void getOfflineStore()
-      .then((store) => syncPendingAttemptsWithApi(store))
+      .then((store) =>
+        Promise.all([syncPendingAttemptsWithApi(store), syncFormalAttemptsWithApi(store, userId)]),
+      )
       .catch(() => undefined);
-  }, [network.isConnected, state.status]);
+  }, [network.isConnected, state.status, state.userId]);
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Protected guard={state.status === 'ready'}>
         <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="demo-course" />
-        <Stack.Screen name="component-showcase" />
-        <Stack.Screen name="audio-to-glyph-showcase" />
-        <Stack.Screen name="glyph-to-image-showcase" />
-        <Stack.Screen name="sentence-order-showcase" />
-        <Stack.Screen name="word-build-showcase" />
+        <Stack.Screen name="session" />
+        {__DEV__
+          ? DEVELOPMENT_ONLY_ROUTES.map((name) => <Stack.Screen key={name} name={name} />)
+          : null}
       </Stack.Protected>
     </Stack>
   );

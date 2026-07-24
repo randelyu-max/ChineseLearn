@@ -1,4 +1,9 @@
-import type { SessionPlanSnapshot } from '@hanziquest/contracts';
+import {
+  learningExerciseV2Fixtures,
+  type SessionActivitySnapshotV2,
+  type SessionPlanSnapshot,
+  type SessionPlanSnapshotV2,
+} from '@hanziquest/contracts';
 import type { Pool } from 'pg';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -48,6 +53,63 @@ const validRequest = {
   idempotencyKey: `session-plan:${clientSessionId}`,
   targetMinutes: 10,
 };
+const v2Activity = {
+  schemaVersion: 'session-activity-v2',
+  sessionActivityId: '20000000-0000-4000-8000-000000000004',
+  sourceExerciseId: learningExerciseV2Fixtures[0].activityId,
+  position: 0,
+  exerciseType: learningExerciseV2Fixtures[0].type,
+  contentRef: 'lesson.test.exercise.audio-to-glyph',
+  contentVersion: '2.0.0',
+  contentSha256: 'a'.repeat(64),
+  exercise: learningExerciseV2Fixtures[0],
+  evidenceTargets: [
+    {
+      schemaVersion: 'evidence-target-v1',
+      conceptType: 'character',
+      conceptId: 'concept.home',
+      skill: 'audio_to_glyph',
+      abilityAxis: 'spoken_audio_comprehension',
+      role: 'primary',
+    },
+  ],
+  pinyinSupport: null,
+  humorContentRef: null,
+  estimatedSeconds: 60,
+} satisfies SessionActivitySnapshotV2;
+const snapshotV2 = {
+  schemaVersion: 'session-plan-snapshot-v2',
+  sessionId,
+  clientSessionId,
+  intent: 'learn',
+  curriculumVersionId: '20000000-0000-4000-8000-000000000005',
+  contentManifestSha256: 'b'.repeat(64),
+  humorContentVersion: null,
+  humorPreference: 'light',
+  planningAlgorithmVersion: 'pinyin-session-planner-v1+session-materializer-v1',
+  targetMinutes: 10,
+  estimatedSeconds: 60,
+  createdAt: createdAt.toISOString(),
+  activities: [v2Activity],
+} satisfies SessionPlanSnapshotV2;
+const plannedV2Result = {
+  schemaVersion: 'session-plan-result-v2',
+  result: 'planned',
+  session: {
+    sessionId,
+    clientSessionId,
+    status: 'planned',
+    createdAt: createdAt.toISOString(),
+    snapshot: snapshotV2,
+  },
+} as const;
+const validV2Request = {
+  schemaVersion: 'session-plan-request-v2',
+  clientSessionId,
+  idempotencyKey: `session-plan-v2:${clientSessionId}`,
+  intent: 'learn',
+  targetMinutes: 10,
+} as const;
 
 function authenticatedAuth(): HanziQuestAuth {
   return {
@@ -151,5 +213,53 @@ describe('session-plan route', () => {
     await expect(response.json()).resolves.toMatchObject({
       data: { clientSessionId, sessionId, snapshot },
     });
+  });
+
+  it('replays an immutable V2 result without consulting current profile or curriculum state', async () => {
+    const query = vi.fn(async (text: string) => {
+      if (text.includes('from public.learning_session_plan_v2_events')) {
+        return {
+          rows: [
+            {
+              client_session_id: clientSessionId,
+              idempotency_key: validV2Request.idempotencyKey,
+              result_snapshot: plannedV2Result,
+            },
+          ],
+        };
+      }
+      return { rows: [] };
+    });
+    const client = { query, release: vi.fn() };
+    const pool = { connect: vi.fn(async () => client) } as unknown as Pool;
+    const response = await createApp(config, authenticatedAuth(), pool).request(
+      '/api/session-plan',
+      {
+        body: JSON.stringify(validV2Request),
+        headers: { 'content-type': 'application/json' },
+        method: 'POST',
+      },
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ data: plannedV2Result });
+    expect(query.mock.calls.some(([sql]) => String(sql).includes('from public.profiles'))).toBe(
+      false,
+    );
+  });
+
+  it('rejects client-selected review keys, candidates, and ownership in V2', async () => {
+    const pool = { connect: vi.fn() } as unknown as Pool;
+    for (const forged of [{ userId }, { reviewKeys: ['forged'] }, { candidates: ['forged'] }]) {
+      const response = await createApp(config, authenticatedAuth(), pool).request(
+        '/api/session-plan',
+        {
+          body: JSON.stringify({ ...validV2Request, intent: 'review', ...forged }),
+          headers: { 'content-type': 'application/json' },
+          method: 'POST',
+        },
+      );
+      expect(response.status).toBe(400);
+    }
+    expect(pool.connect).not.toHaveBeenCalled();
   });
 });

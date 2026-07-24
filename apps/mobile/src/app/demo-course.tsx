@@ -8,6 +8,7 @@ import {
 } from '@hanziquest/design-tokens';
 import type { AttemptDraft } from '@hanziquest/contracts';
 import * as Crypto from 'expo-crypto';
+import { Redirect } from 'expo-router';
 import * as Speech from 'expo-speech';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
@@ -85,6 +86,10 @@ function attemptContext(sequence: number) {
 }
 
 export default function DemoCourseScreen() {
+  return __DEV__ ? <DemoCourseDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function DemoCourseDevelopmentScreen() {
   const [course, setCourse] = useState(createDemoCourseState);
   const [recoveryReady, setRecoveryReady] = useState(false);
   const [offlineSaveStatus, setOfflineSaveStatus] = useState<

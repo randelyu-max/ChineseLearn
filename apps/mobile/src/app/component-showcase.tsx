@@ -6,7 +6,7 @@ import {
   radii,
   spacing,
 } from '@hanziquest/design-tokens';
-import { type Href, useRouter } from 'expo-router';
+import { Redirect, type Href, useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 
@@ -34,6 +34,10 @@ function ShowcaseSection({ children, title }: React.PropsWithChildren<{ title: s
 }
 
 export default function ComponentShowcaseScreen() {
+  return __DEV__ ? <ComponentShowcaseDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function ComponentShowcaseDevelopmentScreen() {
   const reduceMotion = useReducedMotion();
   const router = useRouter();
 

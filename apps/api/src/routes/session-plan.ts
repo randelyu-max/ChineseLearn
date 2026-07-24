@@ -4,6 +4,7 @@ import {
   API_VERSION,
   ERROR_SCHEMA_VERSION,
   SessionPlanRequestSchema,
+  SessionPlanRequestV2Schema,
   SessionPlanResponseDataSchema,
   type SessionPlanResponseData,
   type SessionPlanSnapshot,
@@ -17,6 +18,10 @@ import {
   buildAuthoritativeSessionPlan,
   loadAuthoritativePlanningState,
 } from '../session-plan-service.js';
+import {
+  createOrReplaySessionPlanV2,
+  SessionPlanV2ServiceError,
+} from '../session-plan-v2-service.js';
 
 type SessionPlanRow = {
   client_session_id: string;
@@ -94,11 +99,24 @@ async function findExisting(
   return existing.rows[0] ?? null;
 }
 
+async function findActive(client: PoolClient, userId: string): Promise<SessionPlanRow | null> {
+  const active = await client.query<SessionPlanRow>(
+    `select id, client_session_id, plan, created_at
+     from public.learning_sessions
+     where user_id = $1 and status in ('planned', 'in_progress')
+     order by created_at desc, id desc
+     limit 1`,
+    [userId],
+  );
+  return active.rows[0] ?? null;
+}
+
 async function createOrReplaySessionPlan(
   client: PoolClient,
   userId: string,
   request: ReturnType<typeof SessionPlanRequestSchema.parse>,
 ): Promise<{ created: boolean; row: SessionPlanRow }> {
+  await client.query(`select pg_advisory_xact_lock(hashtextextended($1, 0))`, [userId]);
   const existing = await findExisting(
     client,
     userId,
@@ -106,6 +124,8 @@ async function createOrReplaySessionPlan(
     request.clientSessionId,
   );
   if (existing) return { created: false, row: existing };
+  const active = await findActive(client, userId);
+  if (active) return { created: false, row: active };
 
   const state = await loadAuthoritativePlanningState(client, userId, new Date());
   if (!state) {
@@ -136,7 +156,8 @@ async function createOrReplaySessionPlan(
   );
   const row =
     inserted.rows[0] ??
-    (await findExisting(client, userId, request.idempotencyKey, request.clientSessionId));
+    (await findExisting(client, userId, request.idempotencyKey, request.clientSessionId)) ??
+    (await findActive(client, userId));
   if (!row) {
     throw new SessionPlanRouteError(
       'SESSION_IDEMPOTENCY_CONFLICT',
@@ -161,7 +182,48 @@ export function sessionPlanRoutes(auth: HanziQuestAuth, pool: Pool) {
 
   routes.post('/', async (context) => {
     const id = requestId();
-    const parsed = SessionPlanRequestSchema.safeParse(await context.req.json().catch(() => null));
+    const payload = await context.req.json().catch(() => null);
+    if (
+      typeof payload === 'object' &&
+      payload !== null &&
+      (payload as Record<string, unknown>).schemaVersion === 'session-plan-request-v2'
+    ) {
+      const parsedV2 = SessionPlanRequestV2Schema.safeParse(payload);
+      if (!parsedV2.success) {
+        return context.json(
+          errorBody('SESSION_PLAN_INVALID', 'The Session Plan V2 request is invalid.', id),
+          400,
+        );
+      }
+      try {
+        const planned = await withUserTransaction(pool, context.get('userId'), (client) =>
+          createOrReplaySessionPlanV2(client, context.get('userId'), parsedV2.data),
+        );
+        const body = {
+          apiVersion: API_VERSION,
+          data: planned.result,
+          meta: {
+            requestId: id,
+            respondedAt: new Date().toISOString(),
+          },
+        } as const;
+        return planned.created ? context.json(body, 201) : context.json(body, 200);
+      } catch (error) {
+        if (error instanceof SessionPlanV2ServiceError) {
+          return context.json(errorBody(error.code, error.message, id), 409);
+        }
+        console.error('Session Plan V2 request failed', {
+          code: 'SESSION_PLAN_FAILED',
+          requestId: id,
+        });
+        return context.json(
+          errorBody('SESSION_PLAN_FAILED', 'The Session Plan V2 could not be created.', id, true),
+          500,
+        );
+      }
+    }
+
+    const parsed = SessionPlanRequestSchema.safeParse(payload);
     if (!parsed.success) {
       return context.json(
         errorBody('SESSION_PLAN_INVALID', 'The session-plan request is invalid.', id),

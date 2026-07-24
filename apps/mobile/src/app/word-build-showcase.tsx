@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 
 import { Screen } from '@/components/ui';
@@ -13,6 +14,10 @@ import {
 } from '@/features/word-build';
 
 export default function WordBuildShowcaseScreen() {
+  return __DEV__ ? <WordBuildDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function WordBuildDevelopmentScreen() {
   const [state, setState] = useState(() => createWordBuildState(0));
   return (
     <Screen scrollable>

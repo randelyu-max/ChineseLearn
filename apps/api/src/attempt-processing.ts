@@ -16,7 +16,9 @@ import {
 } from '@hanziquest/learning-engine';
 
 export type EvaluatedAttempt = Readonly<{
+  abilityAxis: 'hanzi_recognition' | 'sentence_reading' | 'word_reading';
   activityType: LearningExercise['type'];
+  baseQuality: number;
   conceptType: 'character' | 'sentence' | 'word';
   correct: boolean;
   evidenceWeight: number;
@@ -24,6 +26,7 @@ export type EvaluatedAttempt = Readonly<{
   metadata: Readonly<Record<string, unknown>>;
   selectedValue: string;
   skill: 'audio_to_glyph' | 'glyph_to_image' | 'sentence_order' | 'word_build';
+  supportMultiplier: number;
   targetConceptIds: readonly string[];
 }>;
 
@@ -134,12 +137,15 @@ export function evaluateAttempt(
       attempt.hintLevel === 'full_answer' ? 'full_answer' : (attempt.pinyinSupport ?? 'none'),
   });
   return Object.freeze({
+    abilityAxis: dimension.axis,
     activityType: exercise.type,
+    baseQuality: evidence.baseQuality,
     conceptType: dimension.conceptType,
     correct,
     evidenceWeight: evidence.independentEvidenceQuality,
     expectedValue: JSON.stringify(expected),
     metadata: Object.freeze({
+      activityId: attempt.activityId,
       clientCorrectnessIgnored: attempt.isCorrectClient,
       evidenceAlgorithmVersion: evidence.algorithmVersion,
       offlineSequence: attempt.offlineSequence,
@@ -149,6 +155,7 @@ export function evaluateAttempt(
     }),
     selectedValue: JSON.stringify(selected),
     skill: dimension.skill,
+    supportMultiplier: evidence.independentEvidenceWeight,
     targetConceptIds: Object.freeze([...exercise.targetConceptIds]),
   });
 }

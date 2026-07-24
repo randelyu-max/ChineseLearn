@@ -1,3 +1,4 @@
+import { Redirect } from 'expo-router';
 import { useState } from 'react';
 
 import { Screen } from '@/components/ui';
@@ -13,6 +14,10 @@ import {
 } from '@/features/sentence-order';
 
 export default function SentenceOrderShowcaseScreen() {
+  return __DEV__ ? <SentenceOrderDevelopmentScreen /> : <Redirect href="/" />;
+}
+
+function SentenceOrderDevelopmentScreen() {
   const [state, setState] = useState(() => createSentenceOrderState(0));
   return (
     <Screen scrollable>

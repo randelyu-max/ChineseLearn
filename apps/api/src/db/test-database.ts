@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import {
   AttemptsBatchRequestSchema,
+  AttemptsBatchRequestV2Schema,
+  SessionPlanRequestV2Schema,
   SignaturePracticeMetricEventSchema,
   SignatureProjectInputSchema,
 } from '@hanziquest/contracts';
@@ -11,8 +13,23 @@ import {
   buildAuthoritativeSessionPlan,
   loadAuthoritativePlanningState,
 } from '../session-plan-service.js';
+import {
+  buildMaterializedSessionPlanV2,
+  createOrReplaySessionPlanV2,
+  loadAuthoritativePlanningStateV2,
+  SessionPlanV2ServiceError,
+} from '../session-plan-v2-service.js';
 import { processAttemptsBatch } from '../attempts-batch-service.js';
+import {
+  AttemptsBatchV2ServiceError,
+  processAttemptsBatchV2,
+} from '../attempts-batch-v2-service.js';
 import { loadReviewCenter, resolveReviewCenterPagination } from '../review-center-service.js';
+import {
+  loadActiveSession,
+  SessionLifecycleServiceError,
+  transitionSession,
+} from '../session-lifecycle-service.js';
 import { recordSignaturePractice, upsertSignatureProject } from '../signature-practice-service.js';
 import { withUserTransaction } from './pool.js';
 
@@ -22,7 +39,12 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required.');
 async function count(client: PoolClient, table: string): Promise<number> {
   const allowed = new Set([
     'attempts',
+    'attempt_batch_v2_events',
+    'attempt_evidence',
     'confusion_stats',
+    'learning_session_activities',
+    'learning_session_lifecycle_events',
+    'learning_session_plan_v2_events',
     'learning_sessions',
     'profiles',
     'review_schedule',
@@ -44,11 +66,13 @@ const userA = randomUUID();
 const userB = randomUUID();
 const curriculumVersion = randomUUID();
 const sessionB = randomUUID();
+const sessionActivityB = randomUUID();
 const clientSessionB = randomUUID();
 const clientSessionA = randomUUID();
 const attemptB = randomUUID();
 const conceptB = randomUUID();
 const confusionConcept = randomUUID();
+const safeConcept = randomUUID();
 const unpublishedConcept = randomUUID();
 const confusionPair = randomUUID();
 const signatureB = randomUUID();
@@ -58,11 +82,27 @@ const signatureEventA = randomUUID();
 const world = randomUUID();
 const unit = randomUUID();
 const lesson = randomUUID();
+const lessonTwo = randomUUID();
 const activity = randomUUID();
+const activityTwo = randomUUID();
 const correctOption = randomUUID();
 const wrongOption = randomUUID();
 const audioAsset = randomUUID();
+const imageOptionCorrect = randomUUID();
+const imageOptionWrong = randomUUID();
+const imageAssetCorrect = randomUUID();
+const imageAssetWrong = randomUUID();
 const cascadeUser = randomUUID();
+const evidenceTargetsJson = JSON.stringify([
+  {
+    schemaVersion: 'evidence-target-v1',
+    conceptType: 'character',
+    conceptId: conceptB,
+    skill: 'audio_to_glyph',
+    abilityAxis: 'hanzi_recognition',
+    role: 'primary',
+  },
+]);
 
 try {
   await client.query('begin');
@@ -83,9 +123,9 @@ try {
   );
   await client.query(
     `update public.curriculum_versions
-     set status = 'published', published_at = now()
+     set status = 'published', published_at = now(), manifest_sha256 = $2
      where id = $1`,
-    [curriculumVersion],
+    [curriculumVersion, 'a'.repeat(64)],
   );
   await client.query(
     `insert into public.worlds (
@@ -102,7 +142,9 @@ try {
   await client.query(
     `insert into public.lessons (
        id, unit_id, slug, sort_order, title_zh, content_spec, is_published
-     ) values ($1, $2, 'test-lesson', 0, '测试课程', $3, true)`,
+     ) values
+       ($1, $2, 'test-lesson', 0, '测试课程', $3, true),
+       ($4, $2, 'test-lesson-two', 1, '测试课程二', $5, true)`,
     [
       lesson,
       unit,
@@ -114,11 +156,46 @@ try {
             promptAudioAssetId: audioAsset,
             targetConceptIds: [conceptB],
             options: [
-              { optionId: correctOption, glyph: '家', accessibilityLabel: '家' },
+              {
+                optionId: correctOption,
+                glyph: '家',
+                accessibilityLabel: '家',
+              },
               { optionId: wrongOption, glyph: '门', accessibilityLabel: '门' },
             ],
             correctOptionId: correctOption,
             visualHintZh: '想想家的声音。',
+          },
+        ],
+      },
+      lessonTwo,
+      {
+        exercises: [
+          {
+            activityId: activityTwo,
+            type: 'glyph_to_image',
+            promptGlyph: '水',
+            promptAudioAssetId: audioAsset,
+            targetConceptIds: [safeConcept],
+            options: [
+              {
+                optionId: imageOptionCorrect,
+                imageAssetId: imageAssetCorrect,
+                accessibilityLabel: '土丘',
+              },
+              {
+                optionId: imageOptionWrong,
+                imageAssetId: imageAssetWrong,
+                accessibilityLabel: '房子',
+              },
+            ],
+            correctOptionId: imageOptionCorrect,
+            visualHintZh: '看看这个字的形状。',
+          },
+          {
+            schemaVersion: 'learning-exercise-v2',
+            activityId: 'pinyin.gated.fixture',
+            type: 'tone_choice',
           },
         ],
       },
@@ -130,7 +207,8 @@ try {
      ) values
        ($1, $2, '家', '家', array['jiā'], true),
        ($3, $4, '冢', '塚', array['zhǒng'], true),
-       ($5, $6, '隐', '隱', array['yǐn'], false)`,
+       ($5, $6, '隐', '隱', array['yǐn'], false),
+       ($7, $8, '水', '水', array['shuǐ'], true)`,
     [
       conceptB,
       `review-${conceptB}`,
@@ -138,6 +216,8 @@ try {
       `review-${confusionConcept}`,
       unpublishedConcept,
       `review-${unpublishedConcept}`,
+      safeConcept,
+      `review-${safeConcept}`,
     ],
   );
   await client.query(
@@ -146,8 +226,9 @@ try {
      ) values
        ($1, 'character', $2, 'target', 0),
        ($1, 'character', $3, 'review', 1),
-       ($1, 'character', $4, 'optional', 2)`,
-    [lesson, conceptB, confusionConcept, unpublishedConcept],
+       ($1, 'character', $4, 'optional', 2),
+       ($5, 'character', $6, 'target', 0)`,
+    [lesson, conceptB, confusionConcept, unpublishedConcept, lessonTwo, safeConcept],
   );
   await client.query(
     `insert into public.confusable_pairs (
@@ -170,6 +251,28 @@ try {
        target_minutes, plan_version, plan
      ) values ($1, $2, $3, $4, $5, 10, 'test-v1', '{}')`,
     [sessionB, userB, clientSessionB, `session-plan:${clientSessionB}`, curriculumVersion],
+  );
+  await client.query(
+    `insert into public.learning_session_activities (
+       id, session_id, user_id, position, source_exercise_id,
+       exercise_type, content_ref, content_version, content_sha256,
+       exercise_snapshot, evidence_targets, estimated_seconds
+     ) values (
+       $1, $2, $3, 0, 'exercise.audio-to-glyph.1',
+       'audio_to_glyph', 'lesson.test.activity.1', '1.0.0', $4, $5, $6, 60
+     )`,
+    [
+      sessionActivityB,
+      sessionB,
+      userB,
+      'a'.repeat(64),
+      {
+        schemaVersion: 'learning-exercise-v2',
+        activityId: 'exercise.audio-to-glyph.1',
+        type: 'audio_to_glyph',
+      },
+      evidenceTargetsJson,
+    ],
   );
   await client.query(
     `insert into public.attempts (
@@ -239,6 +342,59 @@ try {
     'Database trigger must reject plan snapshot mutation even for a privileged writer',
   );
 
+  await client.query('savepoint owner_activity_mutation');
+  let databaseActivityMutationRejected = false;
+  try {
+    await client.query(
+      `update public.learning_session_activities
+       set estimated_seconds = 61
+       where id = $1`,
+      [sessionActivityB],
+    );
+  } catch {
+    databaseActivityMutationRejected = true;
+  }
+  await client.query('rollback to savepoint owner_activity_mutation');
+  assert.equal(
+    databaseActivityMutationRejected,
+    true,
+    'Database trigger must reject activity snapshot mutation even for a privileged writer',
+  );
+
+  await client.query('savepoint mismatched_activity_owner');
+  let mismatchedActivityOwnerRejected = false;
+  try {
+    await client.query(
+      `insert into public.learning_session_activities (
+         session_id, user_id, position, source_exercise_id, exercise_type,
+         content_ref, content_version, content_sha256, exercise_snapshot,
+         evidence_targets, estimated_seconds
+       ) values (
+         $1, $2, 1, 'exercise.mismatch', 'audio_to_glyph',
+         'lesson.test.activity.mismatch', '1.0.0', $3, $4, $5, 60
+       )`,
+      [
+        sessionB,
+        userA,
+        'b'.repeat(64),
+        {
+          schemaVersion: 'learning-exercise-v2',
+          activityId: 'exercise.mismatch',
+          type: 'audio_to_glyph',
+        },
+        evidenceTargetsJson,
+      ],
+    );
+  } catch {
+    mismatchedActivityOwnerRejected = true;
+  }
+  await client.query('rollback to savepoint mismatched_activity_owner');
+  assert.equal(
+    mismatchedActivityOwnerRejected,
+    true,
+    'Composite ownership must reject a session activity for a different user',
+  );
+
   await client.query('savepoint owner_attempt_mutation');
   let databaseAttemptMutationRejected = false;
   try {
@@ -282,12 +438,44 @@ try {
        'test', true, now(), 1)`,
     [cascadeEvent, cascadeSession, cascadeUser, conceptB],
   );
+  await client.query(
+    `insert into public.learning_session_activities (
+       session_id, user_id, position, source_exercise_id, exercise_type,
+       content_ref, content_version, content_sha256, exercise_snapshot,
+       evidence_targets, estimated_seconds
+     ) values (
+       $1, $2, 0, 'exercise.cascade', 'audio_to_glyph',
+       'lesson.test.activity.cascade', '1.0.0', $3, $4, $5, 60
+     )`,
+    [
+      cascadeSession,
+      cascadeUser,
+      'c'.repeat(64),
+      {
+        schemaVersion: 'learning-exercise-v2',
+        activityId: 'exercise.cascade',
+        type: 'audio_to_glyph',
+      },
+      evidenceTargetsJson,
+    ],
+  );
   await client.query(`delete from public."user" where id = $1`, [cascadeUser]);
   const cascadedAttempt = await client.query(
     `select id from public.attempts where offline_event_id = $1`,
     [cascadeEvent],
   );
   assert.equal(cascadedAttempt.rowCount, 0, 'Account deletion must cascade immutable attempts');
+  const cascadedActivity = await client.query(
+    `select id
+     from public.learning_session_activities
+     where session_id = $1`,
+    [cascadeSession],
+  );
+  assert.equal(
+    cascadedActivity.rowCount,
+    0,
+    'Account deletion must cascade immutable session activities',
+  );
 
   await client.query('set local role hanziquest_app');
   await client.query(`select set_config('app.current_user_id', $1, true)`, [userA]);
@@ -341,6 +529,109 @@ try {
     'User A must read only their own session',
   );
 
+  await client.query('reset role');
+  const sessionActivityA = randomUUID();
+  await client.query(
+    `insert into public.learning_session_activities (
+       id, session_id, user_id, position, source_exercise_id,
+       exercise_type, content_ref, content_version, content_sha256,
+       exercise_snapshot, evidence_targets, estimated_seconds
+     ) values (
+       $1, $2, $3, 0, $7, 'audio_to_glyph',
+       'lesson.test.activity.user-a', '1.0.0', $4, $5, $6, 60
+     )`,
+    [
+      sessionActivityA,
+      ownSessionId,
+      userA,
+      'd'.repeat(64),
+      {
+        schemaVersion: 'learning-exercise-v2',
+        activityId: activity,
+        type: 'audio_to_glyph',
+        instructionZh: '听音选择汉字。',
+        instructionAccessibilityLabel: '听一段音频，然后选择正确的汉字。',
+        promptAudioAssetKey: 'audio.jia.v1',
+        options: [
+          {
+            optionId: correctOption,
+            glyph: '家',
+            accessibilityLabel: '家，家庭的家',
+          },
+          {
+            optionId: wrongOption,
+            glyph: '门',
+            accessibilityLabel: '门，大门的门',
+          },
+        ],
+        correctOptionId: correctOption,
+        visualHintZh: '想一想家的声音。',
+      },
+      evidenceTargetsJson,
+      activity,
+    ],
+  );
+  await client.query('set local role hanziquest_app');
+  await client.query(`select set_config('app.current_user_id', $1, true)`, [userA]);
+  assert.equal(
+    await count(client, 'learning_session_activities'),
+    1,
+    'User A must read only their own session activity snapshot',
+  );
+  const activeBeforeStart = await loadActiveSession(client, userA);
+  assert.equal(activeBeforeStart.availability, 'active');
+  assert.equal(
+    activeBeforeStart.availability === 'active' ? activeBeforeStart.session.header.sessionId : null,
+    ownSessionId,
+    'Active Session recovery must return the current user Session and snapshot',
+  );
+  assert.equal(
+    (await loadActiveSession(client, userB)).availability,
+    'none',
+    'RLS must hide User B active Session from a User A transaction',
+  );
+
+  const startRequest = {
+    schemaVersion: 'session-lifecycle-request-v1',
+    idempotencyKey: `session-start:${ownSessionId}`,
+  } as const;
+  const beforeStart = Date.now();
+  const startedSession = await transitionSession(
+    client,
+    userA,
+    ownSessionId,
+    'start',
+    startRequest,
+  );
+  const afterStart = Date.now();
+  assert.equal(startedSession.status, 'in_progress');
+  assert.ok(startedSession.startedAt, 'Starting a Session must record a server timestamp');
+  assert.ok(
+    Date.parse(startedSession.startedAt) >= beforeStart - 1_000 &&
+      Date.parse(startedSession.startedAt) <= afterStart + 1_000,
+    'Session start time must come from the database server during the request',
+  );
+  assert.deepEqual(
+    await transitionSession(client, userA, ownSessionId, 'start', startRequest),
+    startedSession,
+    'A start retry must replay the exact original result',
+  );
+  let incompleteCompletionRejected = false;
+  try {
+    await transitionSession(client, userA, ownSessionId, 'complete', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `session-complete-early:${ownSessionId}`,
+    });
+  } catch (error) {
+    incompleteCompletionRejected =
+      error instanceof SessionLifecycleServiceError && error.code === 'SESSION_ACTIVITY_INCOMPLETE';
+  }
+  assert.equal(
+    incompleteCompletionRejected,
+    true,
+    'A Session cannot complete before every activity has an accepted Attempt',
+  );
+
   const ownSignature = await upsertSignatureProject(
     client,
     userA,
@@ -379,7 +670,12 @@ try {
     ...baselineEvent,
     eventId: randomUUID(),
     idempotencyKey: `signature-practice:${randomUUID()}`,
-    metrics: { direction: 0.81234, proportion: 0.72345, rhythm: 0.63456, structure: 0.94567 },
+    metrics: {
+      direction: 0.81234,
+      proportion: 0.72345,
+      rhythm: 0.63456,
+      structure: 0.94567,
+    },
   });
   const comparedResult = await recordSignaturePractice(client, userA, comparedEvent);
   assert.equal(comparedResult.status, 'accepted');
@@ -390,7 +686,12 @@ try {
   );
   assert.deepEqual(
     comparedResult.status === 'accepted' ? comparedResult.summary.scores : null,
-    { direction: 0.8123, proportion: 0.7235, rhythm: 0.6346, structure: 0.9457 },
+    {
+      direction: 0.8123,
+      proportion: 0.7235,
+      rhythm: 0.6346,
+      structure: 0.9457,
+    },
     'Null baseline metrics must not dilute the canonical four-decimal consistency average',
   );
   assert.equal(
@@ -409,8 +710,12 @@ try {
     'An idempotency key cannot be replayed with different metadata',
   );
   assert.equal(
-    (await recordSignaturePractice(client, userA, { ...baselineEvent, projectId: signatureB }))
-      .status,
+    (
+      await recordSignaturePractice(client, userA, {
+        ...baselineEvent,
+        projectId: signatureB,
+      })
+    ).status,
     'project_not_found',
     'RLS must hide another user signature project from the service',
   );
@@ -576,6 +881,59 @@ try {
   await client.query('rollback to savepoint forged_session_owner');
   assert.equal(forgedSessionOwnerRejected, true, 'Forged session ownership must be rejected');
 
+  await client.query('savepoint forged_activity_owner');
+  let forgedActivityOwnerRejected = false;
+  try {
+    await client.query(
+      `insert into public.learning_session_activities (
+         session_id, user_id, position, source_exercise_id, exercise_type,
+         content_ref, content_version, content_sha256, exercise_snapshot,
+         evidence_targets, estimated_seconds
+       ) values (
+         $1, $2, 1, 'exercise.forged', 'audio_to_glyph',
+         'lesson.test.activity.forged', '1.0.0', $3, $4, $5, 60
+       )`,
+      [
+        ownSessionId,
+        userB,
+        'e'.repeat(64),
+        {
+          schemaVersion: 'learning-exercise-v2',
+          activityId: 'exercise.forged',
+          type: 'audio_to_glyph',
+        },
+        evidenceTargetsJson,
+      ],
+    );
+  } catch {
+    forgedActivityOwnerRejected = true;
+  }
+  await client.query('rollback to savepoint forged_activity_owner');
+  assert.equal(
+    forgedActivityOwnerRejected,
+    true,
+    'Application role must not insert or forge session activity snapshots',
+  );
+
+  await client.query('savepoint mutate_activity');
+  let activityMutationRejected = false;
+  try {
+    await client.query(
+      `update public.learning_session_activities
+       set estimated_seconds = 61
+       where id = $1`,
+      [sessionActivityA],
+    );
+  } catch {
+    activityMutationRejected = true;
+  }
+  await client.query('rollback to savepoint mutate_activity');
+  assert.equal(
+    activityMutationRejected,
+    true,
+    'Application role must not update immutable session activity snapshots',
+  );
+
   assert.equal(await count(client, 'profiles'), 1, 'User A must read their profile');
   for (const table of [
     'signature_projects',
@@ -615,6 +973,17 @@ try {
     [userB],
   );
   assert.equal(userBSessionRows.rowCount, 0, 'User A must not read User B learning session');
+  const userBActivityRows = await client.query(
+    `select id
+     from public.learning_session_activities
+     where user_id = $1`,
+    [userB],
+  );
+  assert.equal(
+    userBActivityRows.rowCount,
+    0,
+    'User A must not read User B session activity snapshots',
+  );
 
   const otherUpdate = await client.query(
     `update public.profiles set display_name = 'forged' where id = $1`,
@@ -645,6 +1014,21 @@ try {
     await count(client, 'learning_sessions'),
     0,
     'Unauthenticated access must return no sessions',
+  );
+  assert.equal(
+    await count(client, 'learning_session_activities'),
+    0,
+    'Unauthenticated access must return no session activities',
+  );
+  assert.equal(
+    await count(client, 'learning_session_lifecycle_events'),
+    0,
+    'Unauthenticated access must return no Session lifecycle events',
+  );
+  assert.equal(
+    await count(client, 'learning_session_plan_v2_events'),
+    0,
+    'Unauthenticated access must return no Session Plan V2 events',
   );
   assert.equal(
     await count(client, 'signature_practice_events'),
@@ -699,6 +1083,841 @@ try {
     2,
     'Concurrent duplicate must change skill state at most once',
   );
+
+  const completeRequest = {
+    schemaVersion: 'session-lifecycle-request-v1',
+    idempotencyKey: `session-complete:${ownSessionId}`,
+  } as const;
+  const completedSession = await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, ownSessionId, 'complete', completeRequest),
+  );
+  assert.equal(completedSession.status, 'completed');
+  assert.ok(completedSession.completedAt, 'Completing a Session must record a server timestamp');
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      transitionSession(transaction, userA, ownSessionId, 'complete', completeRequest),
+    ),
+    completedSession,
+    'A complete retry must replay the exact original result',
+  );
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      transitionSession(transaction, userA, ownSessionId, 'start', startRequest),
+    ),
+    startedSession,
+    'A start retry must remain stable even after the Session completes',
+  );
+  const postCompletionAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatch(transaction, userA, {
+      ...concurrentRequest,
+      idempotencyKey: `attempts-after-complete:${randomUUID()}`,
+      attempts: [{ ...concurrentRequest.attempts[0]!, attemptId: randomUUID() }],
+    }),
+  );
+  assert.equal(postCompletionAttempt?.results[0]?.rejectionCode, 'SESSION_NOT_ACTIVE');
+
+  let reverseTransitionRejected = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      transitionSession(transaction, userA, ownSessionId, 'start', {
+        schemaVersion: 'session-lifecycle-request-v1',
+        idempotencyKey: `session-restart:${ownSessionId}`,
+      }),
+    );
+  } catch (error) {
+    reverseTransitionRejected =
+      error instanceof SessionLifecycleServiceError && error.code === 'SESSION_TRANSITION_INVALID';
+  }
+  assert.equal(
+    reverseTransitionRejected,
+    true,
+    'A completed Session must not return to an active state',
+  );
+  assert.equal(
+    (await withUserTransaction(pool, userA, (transaction) => loadActiveSession(transaction, userA)))
+      .availability,
+    'none',
+    'Completion must remove the Session from active recovery',
+  );
+
+  const abandonedClientSessionId = randomUUID();
+  const abandonedSessionId = await withUserTransaction(pool, userA, (transaction) =>
+    transaction
+      .query<{ id: string }>(
+        `insert into public.learning_sessions (
+         user_id, client_session_id, idempotency_key, curriculum_version_id,
+         lesson_id, target_minutes, plan_version, plan
+       ) values ($1, $2, $3, $4, $5, 10, 'pinyin-session-planner-v1', $6)
+       returning id`,
+        [
+          userA,
+          abandonedClientSessionId,
+          `session-plan:${abandonedClientSessionId}`,
+          curriculumVersion,
+          lesson,
+          plan,
+        ],
+      )
+      .then((result) => result.rows[0]!.id),
+  );
+  const abandonRequest = {
+    schemaVersion: 'session-lifecycle-request-v1',
+    idempotencyKey: `session-abandon:${abandonedSessionId}`,
+    reasonCode: 'user_requested',
+  } as const;
+  const abandonedSession = await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, abandonedSessionId, 'abandon', abandonRequest),
+  );
+  assert.equal(abandonedSession.status, 'abandoned');
+  assert.equal(abandonedSession.abandonedReason, 'user_requested');
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      transitionSession(transaction, userA, abandonedSessionId, 'abandon', abandonRequest),
+    ),
+    abandonedSession,
+    'An abandon retry must replay the exact original result',
+  );
+  const postAbandonAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatch(transaction, userA, {
+      ...concurrentRequest,
+      sessionId: abandonedSessionId,
+      idempotencyKey: `attempts-after-abandon:${randomUUID()}`,
+      attempts: [{ ...concurrentRequest.attempts[0]!, attemptId: randomUUID() }],
+    }),
+  );
+  assert.equal(postAbandonAttempt?.results[0]?.rejectionCode, 'SESSION_NOT_ACTIVE');
+
+  let crossUserLifecycleHidden = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      transitionSession(transaction, userB, sessionB, 'start', {
+        schemaVersion: 'session-lifecycle-request-v1',
+        idempotencyKey: `cross-user-start:${randomUUID()}`,
+      }),
+    );
+  } catch (error) {
+    crossUserLifecycleHidden =
+      error instanceof SessionLifecycleServiceError && error.code === 'SESSION_NOT_FOUND';
+  }
+  assert.equal(
+    crossUserLifecycleHidden,
+    true,
+    'RLS must hide another user Session from lifecycle mutations',
+  );
+
+  const concurrentSessionCandidates = [randomUUID(), randomUUID()];
+  const concurrentSessionResults = await Promise.allSettled(
+    concurrentSessionCandidates.map((candidateId) =>
+      withUserTransaction(pool, userA, (transaction) =>
+        transaction.query(
+          `insert into public.learning_sessions (
+             user_id, client_session_id, idempotency_key, curriculum_version_id,
+             lesson_id, target_minutes, plan_version, plan
+           ) values ($1, $2, $3, $4, $5, 10, 'pinyin-session-planner-v1', $6)
+           returning id`,
+          [
+            userA,
+            candidateId,
+            `concurrent-session:${candidateId}`,
+            curriculumVersion,
+            lesson,
+            plan,
+          ],
+        ),
+      ),
+    ),
+  );
+  assert.deepEqual(
+    concurrentSessionResults.map((result) => result.status).sort(),
+    ['fulfilled', 'rejected'],
+    'The database unique index must allow only one concurrent active Session per user',
+  );
+  const recoveredConcurrentSession = await withUserTransaction(pool, userA, (transaction) =>
+    loadActiveSession(transaction, userA),
+  );
+  assert.equal(recoveredConcurrentSession.availability, 'active');
+  const recoveredConcurrentSessionId =
+    recoveredConcurrentSession.availability === 'active'
+      ? recoveredConcurrentSession.session.header.sessionId
+      : null;
+  assert.ok(recoveredConcurrentSessionId);
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, recoveredConcurrentSessionId, 'abandon', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `cleanup-concurrent-session:${recoveredConcurrentSessionId}`,
+      reasonCode: 'test_cleanup',
+    }),
+  );
+
+  const learnRequestsV2 = [randomUUID(), randomUUID()].map((clientSessionId) =>
+    SessionPlanRequestV2Schema.parse({
+      schemaVersion: 'session-plan-request-v2',
+      clientSessionId,
+      idempotencyKey: `session-plan-v2:${clientSessionId}`,
+      intent: 'learn',
+      targetMinutes: 10,
+    }),
+  );
+  const planningProbeV2 = await withUserTransaction(pool, userA, (transaction) =>
+    loadAuthoritativePlanningStateV2(transaction, userA, 'learn', new Date()),
+  );
+  assert.ok(planningProbeV2, 'V2 planning requires a Profile and hashed published curriculum');
+  assert.ok(
+    planningProbeV2.candidates.length >= 3,
+    `V2 planning expected materializable Hanzi candidates, received ${planningProbeV2.candidates.length}`,
+  );
+  const materializedProbeV2 = buildMaterializedSessionPlanV2(
+    learnRequestsV2[0]!,
+    planningProbeV2,
+    randomUUID(),
+    new Date(),
+  );
+  assert.ok(
+    materializedProbeV2,
+    `V2 planner rejected safe content (ability=${planningProbeV2.abilityEstimate}, candidates=${JSON.stringify(
+      planningProbeV2.candidates.map((candidate) => ({
+        category: candidate.category,
+        difficulty: candidate.difficulty,
+        id: candidate.id,
+        node: candidate.curriculumNodeId,
+        supportBoost: candidate.supportBoost,
+      })),
+    )})`,
+  );
+  const concurrentPlansV2 = await Promise.all(
+    learnRequestsV2.map(async (request) => ({
+      request,
+      response: await withUserTransaction(pool, userA, (transaction) =>
+        createOrReplaySessionPlanV2(transaction, userA, request),
+      ),
+    })),
+  );
+  assert.deepEqual(
+    concurrentPlansV2.map((item) => item.response.result.result).sort(),
+    ['active_session_exists', 'planned'],
+    'Concurrent V2 planning must create one Session and return it to the competing request',
+  );
+  const createdPlanV2 = concurrentPlansV2.find((item) => item.response.result.result === 'planned');
+  assert.ok(createdPlanV2);
+  const createdResultV2 = createdPlanV2.response.result;
+  assert.equal(createdResultV2.result, 'planned');
+  const learnSnapshotV2 = createdResultV2.session.snapshot;
+  assert.ok(
+    learnSnapshotV2.activities.length > 1,
+    'Learn V2 must materialize more than one safe activity when content is available',
+  );
+  assert.ok(
+    new Set(learnSnapshotV2.activities.map((item) => item.contentRef.split('.exercise.')[0])).size >
+      1,
+    'Learn V2 must materialize a multi-Lesson snapshot rather than a single Lesson pointer',
+  );
+  assert.equal(
+    learnSnapshotV2.activities.some((item) => item.exerciseType.includes('pinyin')),
+    false,
+    'The capability gate must exclude Pinyin activities before Attempts V2 support exists',
+  );
+  assert.equal(
+    learnSnapshotV2.activities.every(
+      (item) =>
+        item.contentVersion.startsWith('rls-') &&
+        item.contentSha256.match(/^[a-f0-9]{64}$/) !== null,
+    ),
+    true,
+    'Every V2 activity must freeze its content version and canonical hash',
+  );
+  assert.equal(learnSnapshotV2.humorPreference, 'light');
+  assert.equal(learnSnapshotV2.contentManifestSha256, 'a'.repeat(64));
+
+  await pool.query(`update public.profiles set humor_preference = 'playful' where id = $1`, [
+    userA,
+  ]);
+  const replayedPlanV2 = await withUserTransaction(pool, userA, (transaction) =>
+    createOrReplaySessionPlanV2(transaction, userA, createdPlanV2.request),
+  );
+  assert.deepEqual(
+    replayedPlanV2.result,
+    createdResultV2,
+    'A V2 retry must return the original Snapshot after Profile preferences change',
+  );
+  assert.equal(
+    replayedPlanV2.result.result === 'planned'
+      ? replayedPlanV2.result.session.snapshot.humorPreference
+      : null,
+    'light',
+    'The original reviewed-content preference must remain frozen in the Snapshot',
+  );
+  const persistedActivitiesV2 = await pool.query<{
+    activity_count: string;
+    snapshot_schema_version: string;
+  }>(
+    `select
+       ls.snapshot_schema_version,
+       count(lsa.id)::text as activity_count
+     from public.learning_sessions ls
+     join public.learning_session_activities lsa on lsa.session_id = ls.id
+     where ls.id = $1
+     group by ls.snapshot_schema_version`,
+    [createdResultV2.session.sessionId],
+  );
+  assert.equal(
+    Number(persistedActivitiesV2.rows[0]?.activity_count),
+    learnSnapshotV2.activities.length,
+    'The Session header and every Activity must materialize atomically',
+  );
+  assert.equal(persistedActivitiesV2.rows[0]?.snapshot_schema_version, 'session-plan-snapshot-v2');
+
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, createdResultV2.session.sessionId, 'start', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `start-v2-attempts:${createdResultV2.session.sessionId}`,
+    }),
+  );
+  const attemptsV2 = learnSnapshotV2.activities.map((item, index) => {
+    const answer =
+      'correctOptionId' in item.exercise
+        ? { optionId: item.exercise.correctOptionId }
+        : 'correctTileOrder' in item.exercise
+          ? { tileIds: [...item.exercise.correctTileOrder] }
+          : (() => {
+              throw new Error(`Unsupported Attempts V2 fixture: ${item.exercise.type}`);
+            })();
+    return {
+      attemptId: randomUUID(),
+      sessionActivityId: item.sessionActivityId,
+      answer,
+      isCorrectClient: false,
+      responseMs: 1_000 + index,
+      hintLevel: 'none' as const,
+      pinyinSupport:
+        item.pinyinSupport?.initialEvidenceSupport === 'pinyin_visible'
+          ? ('pinyin_visible' as const)
+          : ('none' as const),
+      replayCount: 0,
+      retryCount: 0,
+      occurredAt: new Date(Date.UTC(2026, 6, 24, 12, 0, 0, index)).toISOString(),
+      offlineSequence: index,
+    };
+  });
+  const attemptsRequestV2 = AttemptsBatchRequestV2Schema.parse({
+    schemaVersion: 'attempts-batch-request-v2',
+    sessionId: createdResultV2.session.sessionId,
+    idempotencyKey: `attempts-v2:${randomUUID()}`,
+    attempts: [...attemptsV2].reverse(),
+  });
+  const attemptsResponseV2 = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(transaction, userA, attemptsRequestV2),
+  );
+  assert.ok(attemptsResponseV2);
+  assert.deepEqual(
+    attemptsResponseV2.results.map((result) => result.attemptId),
+    attemptsV2.map((attempt) => attempt.attemptId),
+    'Attempts V2 must replay offline events in device time and sequence order',
+  );
+  assert.equal(
+    attemptsResponseV2.results.every((result) => result.status === 'accepted' && result.isCorrect),
+    true,
+    'Server scoring must ignore forged client correctness for every multi-Lesson Activity',
+  );
+  const normalizedCounts = await pool.query<{
+    attempts: string;
+    evidence: string;
+  }>(
+    `select
+       count(distinct a.id)::text as attempts,
+       count(ae.attempt_id)::text as evidence
+     from public.attempts a
+     left join public.attempt_evidence ae on ae.attempt_id = a.id
+     where a.user_id = $1
+       and a.session_id = $2
+       and a.attempt_contract_version = 'attempt-event-v2'`,
+    [userA, createdResultV2.session.sessionId],
+  );
+  assert.equal(
+    Number(normalizedCounts.rows[0]?.attempts),
+    learnSnapshotV2.activities.length,
+    'Every Session Activity must create one immutable Attempt',
+  );
+  assert.equal(
+    Number(normalizedCounts.rows[0]?.evidence),
+    learnSnapshotV2.activities.reduce((total, item) => total + item.evidenceTargets.length, 0),
+    'Every explicit Evidence Target must create one normalized row',
+  );
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      processAttemptsBatchV2(transaction, userA, attemptsRequestV2),
+    ),
+    attemptsResponseV2,
+    'The same batch idempotency key must replay the exact first response',
+  );
+
+  let changedBatchRejected = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      processAttemptsBatchV2(transaction, userA, {
+        ...attemptsRequestV2,
+        attempts: attemptsRequestV2.attempts.map((attempt, index) =>
+          index === 0 ? { ...attempt, responseMs: attempt.responseMs + 1 } : attempt,
+        ),
+      }),
+    );
+  } catch (error) {
+    changedBatchRejected =
+      error instanceof AttemptsBatchV2ServiceError &&
+      error.code === 'ATTEMPTS_BATCH_IDEMPOTENCY_CONFLICT';
+  }
+  assert.equal(
+    changedBatchRejected,
+    true,
+    'A reused batch idempotency key must reject a changed payload',
+  );
+  const duplicateAttemptsV2 = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(transaction, userA, {
+      ...attemptsRequestV2,
+      idempotencyKey: `attempts-v2:${randomUUID()}`,
+    }),
+  );
+  assert.equal(
+    duplicateAttemptsV2?.results.every((result) => result.status === 'duplicate'),
+    true,
+    'A new batch containing the same immutable Attempt IDs must return duplicate',
+  );
+  const concurrentAttemptV2 = {
+    ...attemptsV2[0]!,
+    attemptId: randomUUID(),
+    occurredAt: new Date(Date.UTC(2026, 6, 24, 12, 1)).toISOString(),
+    offlineSequence: 90,
+  };
+  const concurrentAttemptResultsV2 = await Promise.all(
+    [randomUUID(), randomUUID()].map((batchId) =>
+      withUserTransaction(pool, userA, (transaction) =>
+        processAttemptsBatchV2(
+          transaction,
+          userA,
+          AttemptsBatchRequestV2Schema.parse({
+            schemaVersion: 'attempts-batch-request-v2',
+            sessionId: createdResultV2.session.sessionId,
+            idempotencyKey: `attempts-v2:${batchId}`,
+            attempts: [concurrentAttemptV2],
+          }),
+        ),
+      ),
+    ),
+  );
+  assert.deepEqual(
+    concurrentAttemptResultsV2.map((result) => result?.results[0]?.status).sort(),
+    ['accepted', 'duplicate'],
+    'Concurrent delivery of one Attempt ID must create one event and one duplicate response',
+  );
+
+  const firstV2Activity = learnSnapshotV2.activities[0]!;
+  const invalidShapeV2 = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(
+      transaction,
+      userA,
+      AttemptsBatchRequestV2Schema.parse({
+        schemaVersion: 'attempts-batch-request-v2',
+        sessionId: createdResultV2.session.sessionId,
+        idempotencyKey: `attempts-v2:${randomUUID()}`,
+        attempts: [
+          {
+            attemptId: randomUUID(),
+            sessionActivityId: firstV2Activity.sessionActivityId,
+            answer: { tileIds: [randomUUID()] },
+            responseMs: 900,
+            hintLevel: 'none',
+            pinyinSupport:
+              firstV2Activity.pinyinSupport?.initialEvidenceSupport === 'pinyin_visible'
+                ? 'pinyin_visible'
+                : 'none',
+            replayCount: 0,
+            retryCount: 0,
+            occurredAt: new Date().toISOString(),
+            offlineSequence: 100,
+          },
+        ],
+      }),
+    ),
+  );
+  assert.equal(invalidShapeV2?.results[0]?.status, 'rejected');
+  assert.equal(invalidShapeV2?.results[0]?.rejectionCode, 'ANSWER_INVALID');
+  const missingActivityV2 = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(
+      transaction,
+      userA,
+      AttemptsBatchRequestV2Schema.parse({
+        ...attemptsRequestV2,
+        idempotencyKey: `attempts-v2:${randomUUID()}`,
+        attempts: [
+          {
+            ...attemptsRequestV2.attempts[0]!,
+            attemptId: randomUUID(),
+            sessionActivityId: randomUUID(),
+            offlineSequence: 101,
+          },
+        ],
+      }),
+    ),
+  );
+  const missingActivityResultV2 = missingActivityV2?.results[0];
+  assert.equal(missingActivityResultV2?.status, 'rejected');
+  assert.equal(
+    missingActivityResultV2?.status === 'rejected' ? missingActivityResultV2.rejectionCode : null,
+    'ACTIVITY_NOT_FOUND',
+  );
+  assert.equal(
+    await withUserTransaction(pool, userA, (transaction) =>
+      processAttemptsBatchV2(transaction, userA, {
+        ...attemptsRequestV2,
+        sessionId: sessionB,
+        idempotencyKey: `attempts-v2:${randomUUID()}`,
+      }),
+    ),
+    null,
+    'RLS must hide another user Session from Attempts V2',
+  );
+  const hiddenEvidence = await withUserTransaction(pool, userB, (transaction) =>
+    transaction.query(`select attempt_id from public.attempt_evidence where user_id = $1`, [userA]),
+  );
+  assert.equal(hiddenEvidence.rowCount, 0, 'RLS must hide another user normalized Evidence');
+  const hiddenBatchEvents = await withUserTransaction(pool, userB, (transaction) =>
+    transaction.query(`select id from public.attempt_batch_v2_events where user_id = $1`, [userA]),
+  );
+  assert.equal(hiddenBatchEvents.rowCount, 0, 'RLS must hide another user batch receipts');
+  let evidenceMutationRejected = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      transaction.query(
+        `update public.attempt_evidence
+         set effective_quality = 0
+         where user_id = $1`,
+        [userA],
+      ),
+    );
+  } catch {
+    evidenceMutationRejected = true;
+  }
+  assert.equal(evidenceMutationRejected, true, 'Normalized Evidence must be immutable');
+  let forgedEvidenceOwnerRejected = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      transaction.query(
+        `insert into public.attempt_evidence (
+           attempt_id, user_id, evidence_index, concept_type, concept_id, skill, ability_axis,
+           target_role, correct, base_quality, support_multiplier, effective_quality,
+           algorithm_version
+         ) values (
+           $1, $2, 0, 'character', $3, 'audio_to_glyph', 'hanzi_recognition',
+           'primary', true, 1, 1, 1, 'forged-evidence-v1'
+         )`,
+        [attemptB, userB, conceptB],
+      ),
+    );
+  } catch {
+    forgedEvidenceOwnerRejected = true;
+  }
+  assert.equal(
+    forgedEvidenceOwnerRejected,
+    true,
+    'RLS must reject a forged user_id on normalized Evidence',
+  );
+
+  const hiddenPlanEvents = await withUserTransaction(pool, userB, (transaction) =>
+    transaction.query(
+      `select id
+       from public.learning_session_plan_v2_events
+       where user_id = $1`,
+      [userA],
+    ),
+  );
+  assert.equal(hiddenPlanEvents.rowCount, 0, 'RLS must hide another user Session Plan V2 events');
+
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, createdResultV2.session.sessionId, 'complete', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `complete-v2-learn:${createdResultV2.session.sessionId}`,
+    }),
+  );
+  const completedSessionAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(
+      transaction,
+      userA,
+      AttemptsBatchRequestV2Schema.parse({
+        ...attemptsRequestV2,
+        idempotencyKey: `attempts-v2:${randomUUID()}`,
+        attempts: [
+          {
+            ...attemptsRequestV2.attempts[0]!,
+            attemptId: randomUUID(),
+            offlineSequence: 102,
+          },
+        ],
+      }),
+    ),
+  );
+  assert.equal(
+    completedSessionAttempt?.results[0]?.status === 'rejected'
+      ? completedSessionAttempt.results[0].rejectionCode
+      : null,
+    'SESSION_NOT_ACTIVE',
+    'A completed Session must reject new Attempts V2',
+  );
+
+  await pool.query(
+    `insert into public.review_schedule (
+       user_id, concept_type, concept_id, skill, due_at, due_reason,
+       interval_days, planner_version
+     ) values
+       ($1, 'character', $2, 'audio_to_glyph', '2020-01-01T00:00:00.000Z',
+        'v2-review-test', 1, 'test-v2'),
+       ($1, 'character', $3, 'glyph_to_image', '2020-01-01T00:00:00.000Z',
+        'v2-review-test', 1, 'test-v2')
+     on conflict (user_id, concept_type, concept_id, skill) do update set
+       due_at = excluded.due_at,
+       due_reason = excluded.due_reason,
+       planner_version = excluded.planner_version`,
+    [userA, conceptB, safeConcept],
+  );
+  const dueReviewRowsV2 = await withUserTransaction(pool, userA, (transaction) =>
+    transaction.query(
+      `select concept_id, skill
+       from public.review_schedule
+       where user_id = $1 and due_at <= transaction_timestamp()
+       order by concept_id, skill`,
+      [userA],
+    ),
+  );
+  assert.ok(
+    dueReviewRowsV2.rowCount !== null && dueReviewRowsV2.rowCount >= 2,
+    'The authenticated review planner must see the two authoritative due fixtures',
+  );
+  const authoritativeReviewStateV2 = await withUserTransaction(pool, userA, (transaction) =>
+    loadAuthoritativePlanningStateV2(transaction, userA, 'review', new Date()),
+  );
+  assert.ok(authoritativeReviewStateV2);
+  assert.ok(
+    authoritativeReviewStateV2.candidates.length >= 2,
+    'Due Review Schedule rows must resolve to safe materializable candidates',
+  );
+  const reviewClientSessionId = randomUUID();
+  const reviewRequestV2 = SessionPlanRequestV2Schema.parse({
+    schemaVersion: 'session-plan-request-v2',
+    clientSessionId: reviewClientSessionId,
+    idempotencyKey: `session-plan-v2:${reviewClientSessionId}`,
+    intent: 'review',
+    targetMinutes: 10,
+  });
+  const reviewPlanV2 = await withUserTransaction(pool, userA, (transaction) =>
+    createOrReplaySessionPlanV2(transaction, userA, reviewRequestV2),
+  );
+  assert.equal(reviewPlanV2.result.result, 'planned');
+  assert.equal(
+    reviewPlanV2.result.result === 'planned'
+      ? reviewPlanV2.result.session.snapshot.activities.every((item) =>
+          item.evidenceTargets.every((target) =>
+            ([conceptB, safeConcept] as string[]).includes(target.conceptId),
+          ),
+        )
+      : false,
+    true,
+    'Review V2 must use only server-authoritative due concepts',
+  );
+  assert.equal(
+    reviewPlanV2.result.result === 'planned'
+      ? reviewPlanV2.result.session.snapshot.activities.every(
+          (item) =>
+            item.exerciseType === 'audio_to_glyph' || item.exerciseType === 'glyph_to_image',
+        )
+      : false,
+    true,
+    'Review V2 must not introduce a new concept or unsupported exercise type',
+  );
+  assert.equal(reviewPlanV2.result.result, 'planned');
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(
+      transaction,
+      userA,
+      reviewPlanV2.result.result === 'planned'
+        ? reviewPlanV2.result.session.sessionId
+        : randomUUID(),
+      'abandon',
+      {
+        schemaVersion: 'session-lifecycle-request-v1',
+        idempotencyKey: `cleanup-v2-review:${reviewClientSessionId}`,
+        reasonCode: 'test_cleanup',
+      },
+    ),
+  );
+  const abandonedReviewActivity =
+    reviewPlanV2.result.result === 'planned'
+      ? reviewPlanV2.result.session.snapshot.activities[0]
+      : undefined;
+  assert.ok(abandonedReviewActivity);
+  const abandonedSessionAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(
+      transaction,
+      userA,
+      AttemptsBatchRequestV2Schema.parse({
+        schemaVersion: 'attempts-batch-request-v2',
+        sessionId:
+          reviewPlanV2.result.result === 'planned'
+            ? reviewPlanV2.result.session.sessionId
+            : randomUUID(),
+        idempotencyKey: `attempts-v2:${randomUUID()}`,
+        attempts: [
+          {
+            attemptId: randomUUID(),
+            sessionActivityId: abandonedReviewActivity.sessionActivityId,
+            answer: { optionId: randomUUID() },
+            responseMs: 700,
+            hintLevel: 'none',
+            pinyinSupport: 'none',
+            replayCount: 0,
+            retryCount: 0,
+            occurredAt: new Date().toISOString(),
+            offlineSequence: 103,
+          },
+        ],
+      }),
+    ),
+  );
+  assert.equal(
+    abandonedSessionAttempt?.results[0]?.status === 'rejected'
+      ? abandonedSessionAttempt.results[0].rejectionCode
+      : null,
+    'SESSION_NOT_ACTIVE',
+    'An abandoned Session must reject new Attempts V2',
+  );
+
+  await pool.query(
+    `update public.review_schedule
+     set due_at = '2099-01-01T00:00:00.000Z'
+     where user_id = $1`,
+    [userA],
+  );
+  const planWriteCounts = async () =>
+    pool
+      .query<{
+        activities: string;
+        events: string;
+        sessions: string;
+      }>(
+        `select
+           (select count(*) from public.learning_sessions where user_id = $1)::text as sessions,
+           (select count(*) from public.learning_session_activities where user_id = $1)::text
+             as activities,
+           (select count(*) from public.learning_session_plan_v2_events where user_id = $1)::text
+             as events`,
+        [userA],
+      )
+      .then((result) => result.rows[0]);
+  const countsBeforeNothingDue = await planWriteCounts();
+  const nothingDueClientSessionId = randomUUID();
+  const nothingDue = await withUserTransaction(pool, userA, (transaction) =>
+    createOrReplaySessionPlanV2(
+      transaction,
+      userA,
+      SessionPlanRequestV2Schema.parse({
+        schemaVersion: 'session-plan-request-v2',
+        clientSessionId: nothingDueClientSessionId,
+        idempotencyKey: `session-plan-v2:${nothingDueClientSessionId}`,
+        intent: 'review',
+        targetMinutes: 10,
+      }),
+    ),
+  );
+  assert.equal(nothingDue.result.result, 'nothing_due');
+  const countsAfterNothingDue = await planWriteCounts();
+  assert.equal(
+    countsAfterNothingDue?.sessions,
+    countsBeforeNothingDue?.sessions,
+    'nothing_due must not create an empty Session',
+  );
+  assert.equal(
+    countsAfterNothingDue?.activities,
+    countsBeforeNothingDue?.activities,
+    'nothing_due must not create an Activity',
+  );
+  assert.equal(
+    Number(countsAfterNothingDue?.events),
+    Number(countsBeforeNothingDue?.events) + 1,
+    'nothing_due must persist exactly one immutable idempotency receipt',
+  );
+  await pool.query(
+    `update public.review_schedule
+     set due_at = '2020-01-01T00:00:00.000Z'
+     where user_id = $1 and concept_id = $2`,
+    [userA, conceptB],
+  );
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      createOrReplaySessionPlanV2(
+        transaction,
+        userA,
+        SessionPlanRequestV2Schema.parse({
+          schemaVersion: 'session-plan-request-v2',
+          clientSessionId: nothingDueClientSessionId,
+          idempotencyKey: `session-plan-v2:${nothingDueClientSessionId}`,
+          intent: 'review',
+          targetMinutes: 10,
+        }),
+      ),
+    ),
+    nothingDue,
+    'A nothing_due retry must replay the first result after due state changes',
+  );
+
+  const invalidLesson = randomUUID();
+  await pool.query(
+    `insert into public.lessons (
+       id, unit_id, slug, sort_order, title_zh, content_spec, is_published
+     ) values ($1, $2, $3, 99, '损坏测试课程', $4, true)`,
+    [
+      invalidLesson,
+      unit,
+      `invalid-${invalidLesson}`,
+      {
+        exercises: [
+          {
+            activityId: randomUUID(),
+            type: 'audio_to_glyph',
+            promptAudioAssetId: audioAsset,
+            targetConceptIds: [conceptB],
+            options: [],
+            correctOptionId: correctOption,
+            visualHintZh: '损坏内容。',
+          },
+        ],
+      },
+    ],
+  );
+  const countsBeforeInvalidContent = await planWriteCounts();
+  let invalidContentRejected = false;
+  try {
+    const invalidClientSessionId = randomUUID();
+    await withUserTransaction(pool, userA, (transaction) =>
+      createOrReplaySessionPlanV2(
+        transaction,
+        userA,
+        SessionPlanRequestV2Schema.parse({
+          schemaVersion: 'session-plan-request-v2',
+          clientSessionId: invalidClientSessionId,
+          idempotencyKey: `session-plan-v2:${invalidClientSessionId}`,
+          intent: 'learn',
+          targetMinutes: 10,
+        }),
+      ),
+    );
+  } catch (error) {
+    invalidContentRejected =
+      error instanceof SessionPlanV2ServiceError && error.code === 'SESSION_CONTENT_INVALID';
+  }
+  assert.equal(invalidContentRejected, true, 'Malformed published content must fail closed');
+  assert.deepEqual(
+    await planWriteCounts(),
+    countsBeforeInvalidContent,
+    'A materialization failure must not leave a partial Session or Activity',
+  );
+  await pool.query(`delete from public.lessons where id = $1`, [invalidLesson]);
 
   const reviewGeneratedAt = new Date('2030-01-01T00:00:00.000Z');
   const reviewPagination = resolveReviewCenterPagination(
@@ -774,10 +1993,10 @@ try {
   await pool.query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion]);
   await pool.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
   await pool.query(`delete from public.characters where id = any($1::uuid[])`, [
-    [conceptB, confusionConcept, unpublishedConcept],
+    [conceptB, confusionConcept, safeConcept, unpublishedConcept],
   ]);
   console.log(
-    'PostgreSQL integration passed: planning, authoritative attempts, concurrency, idempotency, immutability, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
+    'PostgreSQL integration passed: Session Plan V2 learn/review materialization, Attempts V2 snapshot scoring, normalized Evidence replay, immutable/idempotent offline concurrency, terminal rejection, capability gating, lifecycle/active recovery, empty-result receipts without empty Sessions, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
   );
 } catch (error) {
   if (!clientReleased) await client.query('rollback').catch(() => undefined);
@@ -792,7 +2011,7 @@ try {
     .catch(() => undefined);
   await pool
     .query(`delete from public.characters where id = any($1::uuid[])`, [
-      [conceptB, confusionConcept, unpublishedConcept],
+      [conceptB, confusionConcept, safeConcept, unpublishedConcept],
     ])
     .catch(() => undefined);
   throw error;

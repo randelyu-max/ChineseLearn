@@ -4,7 +4,10 @@ Candidate: `1.0.0` (`iOS build 1`, `Android versionCode 1`)
 
 Audit date: 2026-07-23
 
-Review API checkpoint: 2026-07-24 (Task 8.2A complete; 8.2B and 9.5R pending)
+Review API checkpoint: 2026-07-24 (Task 8.2A read-only API complete)
+
+Post-8.2A audit status: Closed Alpha. The historical direct 8.2B/9.5R continuation is superseded
+by `TASK_MANIFEST_POST_8_2A.yaml`.
 
 Overall decision: **NOT READY FOR PROMOTION**
 
@@ -13,12 +16,19 @@ any release blocker below remains open.
 
 ## Release blockers
 
-| Gate                     | Result                   | Evidence / required action                                                                                                                                                                                            |
-| ------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Review experience        | **BLOCKED**              | Task 8.2A now provides the authenticated read-only `GET /api/review-center` contract/API. The Review tab still renders `复习计划将在后续任务中实现。`; complete Task 8.2B, then rerun this entire audit as Task 9.5R. |
-| Native signed builds     | **PENDING**              | Android and iOS JavaScript exports pass, but signed builds and physical-device checks require Apple/Google credentials and real devices.                                                                              |
-| Operator support channel | **PENDING**              | A private contact for account access/deletion requests must be published before public store promotion.                                                                                                               |
-| Store identifiers        | **PENDING CONFIRMATION** | Confirm ownership of `com.hanziquest.app` before creating irreversible store records.                                                                                                                                 |
+| Gate                     | Result                   | Evidence / required action                                                                                                                                                        |
+| ------------------------ | ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Review experience        | **BLOCKED**              | Task 8.2A provides only authenticated read-only preview data. Complete Review hardening and Task 8.2B-R after the universal Runner; do not execute historical Task 8.2B directly. |
+| Formal learning loop     | **BLOCKED**              | The authenticated home path still enters Demo content. Complete canonical Session activities, lifecycle, Session Plan/Attempts V2, mobile recovery, and the universal Runner.     |
+| Pinyin persistence       | **BLOCKED**              | Six deterministic exercise UIs exist, but Pinyin content, scoring, evidence, mastery, and review are not yet first-class PostgreSQL runtime domains.                              |
+| Review execution         | **BLOCKED**              | The read model is not a runnable review Session. Starting review must use the authoritative planner with `intent: review`.                                                        |
+| Production curriculum    | **BLOCKED**              | Demo/showcase fixtures do not satisfy versioned production curriculum publication, import, validation, and rollback.                                                              |
+| Account privacy controls | **BLOCKED**              | Account deletion, data export, and complete local-data cleanup are not yet implemented.                                                                                           |
+| Runtime localization     | **BLOCKED**              | Locale preferences exist, but the complete runtime copy/error/accessibility localization scope is not yet verified.                                                               |
+| Diagnostic product flow  | **BLOCKED**              | The diagnostic algorithm exists without the required UI, persistence, and starting-point application.                                                                             |
+| Native signed builds     | **PENDING**              | Android and iOS JavaScript exports pass, but signed builds and physical-device checks require Apple/Google credentials and real devices.                                          |
+| Operator support channel | **PENDING**              | A private contact for account access/deletion requests must be published before public store promotion.                                                                           |
+| Store identifiers        | **PENDING CONFIRMATION** | Confirm ownership of `com.hanziquest.app` before creating irreversible store records.                                                                                             |
 
 ## Automated gates
 
@@ -54,6 +64,22 @@ This is implementation evidence, not the Task 9.5R release decision:
   table, field, index, migration, or remote database operation.
 - The current session-plan contract does not support review intent. This is an explicit Task 8.2B
   start checkpoint, not permission to implement a second planner.
+
+## Task 8.2C-A checkpoint
+
+This is implementation evidence for the canonical Session Activity foundation, not a release
+decision:
+
+- `learning-exercise-v2` represents all ten required Hanzi and Pinyin exercise types; the V1
+  planner remains unchanged and does not emit formal Pinyin activities.
+- Full repository validation passed: frozen install; format; 8/8 lint; 8/8 typecheck; 80 test files
+  and 407 tests; content, AI exclusion, portable-backend, and V1 boundary scans; seven immutable
+  migration checks; and 8/8 builds with 22 Expo static routes.
+- A fresh PostgreSQL 17.10 database applied `0001`–`0007` and passed immutable activity, composite
+  Session/user ownership, application-role write denial, cross-user RLS, unauthenticated denial,
+  cascade deletion, planning, Attempts V1, concurrency, and Review read-only regression checks.
+- No Session lifecycle, runtime V2 planner, Attempts V2, mobile Runner, Pinyin persistence, Review
+  UI, remote database operation, commit, or push was performed by this task.
 
 ## Security, privacy, and data
 
@@ -122,9 +148,9 @@ review.
 
 ## Promotion and rollback decision
 
-Do not promote this candidate. Complete Task 8.2B, rerun this entire checklist as Task 9.5R,
-produce signed native builds, complete the physical-device matrix, publish the private support
-channel, and confirm the store identifiers.
+Do not promote this candidate. Complete the Post-8.2A manifest in dependency order, rerun this
+entire checklist as the final Task 9.5R, produce signed native builds, complete the physical-device
+matrix, publish the private support channel, and confirm the store identifiers.
 
 Rollback for the current unpromoted candidate is to leave the prior deployment/build active and
 discard the candidate. Database migrations remain forward-only; use the verified snapshot/restore

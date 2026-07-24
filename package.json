@@ -22,6 +22,7 @@
     "db:migrate": "corepack pnpm --filter @hanziquest/api db:migrate",
     "db:validate:static": "node scripts/validate-postgres-migrations.mjs",
     "db:test": "corepack pnpm --filter @hanziquest/api db:test",
+    "db:test:attempt-backfill": "corepack pnpm --filter @hanziquest/api db:test:attempt-backfill",
     "verify:portable-backend": "node scripts/verify-portable-backend.mjs",
     "verify:v1-release": "node scripts/verify-v1-release.mjs",
     "verify:no-ai": "node scripts/verify-no-ai-runtime.mjs",

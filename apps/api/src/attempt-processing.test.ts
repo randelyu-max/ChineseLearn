@@ -37,6 +37,7 @@ describe('authoritative attempt processing', () => {
     const evaluated = evaluateAttempt(attempt, exercise);
     expect(evaluated.correct).toBe(false);
     expect(evaluated.evidenceWeight).toBe(0);
+    expect(evaluated.metadata.activityId).toBe(activityId);
     expect(evaluated.metadata.clientCorrectnessIgnored).toBe(true);
   });
 
