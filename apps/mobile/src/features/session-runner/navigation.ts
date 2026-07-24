@@ -2,6 +2,7 @@ import type { Href } from 'expo-router';
 
 export const PRODUCTION_LEARN_ROUTE = '/session' as Href;
 export const PRODUCTION_PINYIN_ROUTE = '/session' as Href;
+export const PRODUCTION_REVIEW_ROUTE = '/session' as Href;
 
 export const DEVELOPMENT_ONLY_ROUTES = [
   'demo-course',

@@ -4,7 +4,7 @@ Status: Task 8.2A restored only the Review Center read model/API. The old direct
 Task 9.5R sequence is **SUPERSEDED** by
 [`docs/addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md`](addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md)
 and `TASK_MANIFEST_POST_8_2A.yaml`. The current stage is Closed Alpha, not a public V1 release
-candidate. Task 8.2A-H is complete; the next dependency-scoped task is 8.2B-R.
+candidate. Task 8.2B-R is complete; the next dependency-scoped task is 8.3D.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -452,3 +452,10 @@ requirements remain explicit blockers rather than inferred passes.
 Completed on 2026-07-24. Review Center now uses signed fixed-clock keyset pagination, explicit
 active Curriculum selection, SQL-side due filtering/multi-skill merge/confusion coverage/counts,
 and bounded `limit + 1` reads. The next task is 8.2B-R.
+
+### 8.2B-R completion checkpoint
+
+Completed on 2026-07-24. The Review tab now renders the authenticated read model, user-isolated
+offline cache, supportive reasons, complete/empty/error states, and active Session recovery.
+Starting review calls Session Plan V2 with `intent: review`; preview items never become client
+planner input. The next task is 8.3D.

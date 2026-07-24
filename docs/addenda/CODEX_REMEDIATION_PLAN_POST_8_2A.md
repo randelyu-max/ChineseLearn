@@ -141,3 +141,10 @@ Task 8.2A-H completed on 2026-07-24. Review Center now uses a signed fixed-clock
 a bounded PostgreSQL read model. Active Curriculum selection is explicit by spoken/script track,
 and `pinyin_dependency` requires observed reduced-support Hanzi Evidence. The next unique task is
 `8.2B-R — formal mobile Review Center`.
+
+## Task 8.2B-R completion checkpoint
+
+Task 8.2B-R completed on 2026-07-24. The mobile Review tab now consumes the read-only Review Center,
+caches it per user for offline display, resumes an active formal Session, and starts new review
+only through Session Plan V2 `intent: review`. Completion invalidates the cached read model after
+outbox synchronization. The next unique task is `8.3D — diagnostic productization`.

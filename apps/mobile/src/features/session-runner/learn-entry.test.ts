@@ -4,6 +4,7 @@ import { createWebOfflineStore } from '../offline-storage/web-store';
 import { describe, expect, it, vi } from 'vitest';
 
 import { enterLearnSession } from './learn-entry';
+import { enterReviewSession } from './review-entry';
 import {
   RUNNER_NOW,
   RUNNER_SESSION_ID,
@@ -79,6 +80,29 @@ function api(overrides: Partial<FormalSessionApi> = {}): FormalSessionApi {
 }
 
 describe('learn entry orchestration', () => {
+  it('creates review through Session Plan V2 without passing preview items', async () => {
+    const offlineStore = memoryStore();
+    await offlineStore.initialize();
+    const service = api();
+    await enterReviewSession({
+      api: service,
+      clientSessionId: () => '54000000-0000-4000-8000-000000000011',
+      idempotencyKey: () => 'mobile-review-plan:test:0001',
+      isOnline: true,
+      nowIso: RUNNER_NOW,
+      store: offlineStore,
+      sync: vi.fn(async () => synced),
+      targetMinutes: 10,
+      userId: RUNNER_USER_ID,
+    });
+    expect(service.plan).toHaveBeenCalledWith(
+      expect.objectContaining({ intent: 'review', clientCapabilities: ['pinyin-exercises-v1'] }),
+    );
+    expect(service.plan).not.toHaveBeenCalledWith(
+      expect.objectContaining({ items: expect.anything() }),
+    );
+  });
+
   it('creates, caches, starts, and returns a formal learn Session', async () => {
     const store = memoryStore();
     await store.initialize();

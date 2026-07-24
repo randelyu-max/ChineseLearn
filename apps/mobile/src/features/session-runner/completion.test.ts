@@ -52,6 +52,7 @@ describe('formal Session completion orchestration', () => {
     await store.saveFormalSession(runnerSession());
     await store.setSyncCursor(`${RUNNER_USER_ID}:learn-home`, 'stale');
     await store.setSyncCursor(`${RUNNER_USER_ID}:review-center`, 'stale');
+    await store.setSyncCursor(`${RUNNER_USER_ID}:review-center:cache`, 'stale-cache');
     const api = apiFixture();
     await expect(
       completeFormalSession({
@@ -69,6 +70,7 @@ describe('formal Session completion orchestration', () => {
     expect(api.complete).toHaveBeenCalledOnce();
     await expect(store.getSyncCursor(`${RUNNER_USER_ID}:learn-home`)).resolves.toBeNull();
     await expect(store.getSyncCursor(`${RUNNER_USER_ID}:review-center`)).resolves.toBeNull();
+    await expect(store.getSyncCursor(`${RUNNER_USER_ID}:review-center:cache`)).resolves.toBeNull();
   });
 
   it('never completes while offline Attempts remain pending', async () => {

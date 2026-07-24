@@ -56,6 +56,7 @@ export async function enterLearnSession(input: {
   sync: SyncFormalAttempts;
   targetMinutes: number;
   userId: string;
+  intent?: 'learn' | 'review';
 }): Promise<LearnEntryResult> {
   const recovery = await recoverFormalSession({
     api: input.api,
@@ -103,7 +104,7 @@ export async function enterLearnSession(input: {
     schemaVersion: 'session-plan-request-v2',
     clientSessionId: input.clientSessionId(),
     idempotencyKey: input.idempotencyKey(),
-    intent: 'learn',
+    intent: input.intent ?? 'learn',
     targetMinutes: Math.max(3, Math.min(20, Math.round(input.targetMinutes))),
     clientCapabilities: [PINYIN_EXERCISES_CLIENT_CAPABILITY],
   });

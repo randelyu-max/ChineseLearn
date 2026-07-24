@@ -2,6 +2,7 @@ import type { FormalSessionApi } from '../formal-session/api';
 import { reconcileLifecycleState } from '../formal-session/recovery';
 import type { FormalOutboxSyncResult } from '../formal-session/sync';
 import type { FormalSessionCacheRecord, OfflineStore } from '../offline-storage/model';
+import { invalidateReviewCenter } from '../review-center/model';
 
 type SyncFormalAttempts = (store: OfflineStore, userId: string) => Promise<FormalOutboxSyncResult>;
 
@@ -36,6 +37,7 @@ export async function completeFormalSession(input: {
     store: input.store,
     userId: input.userId,
   });
+  await invalidateReviewCenter(input.store, input.userId);
   return reconciled.session
     ? { status: 'completed', session: reconciled.session }
     : { status: 'request_failed' };

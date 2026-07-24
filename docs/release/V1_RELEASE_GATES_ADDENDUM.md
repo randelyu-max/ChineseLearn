@@ -11,7 +11,7 @@
 - [x] 多 Lesson Attempts V2 与规范化 Evidence（8.2C-D，2026-07-24）；
 - [ ] 正式汉字 Runner；
 - [x] 拼音持久化、评分、掌握度和复习（5.9P-A/B/C，2026-07-24）；
-- [ ] 正式 Review Session 和移动端复习页；
+- [x] 正式 Review Session 和移动端复习页（8.2B-R，2026-07-24）；
 - [ ] 生产 Curriculum Release 可在空数据库导入；
 - [ ] App 内账号删除和 Server/Local 清理；
 - [ ] 数据导出；
