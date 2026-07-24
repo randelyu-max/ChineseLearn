@@ -12,7 +12,7 @@
 - [ ] 正式汉字 Runner；
 - [x] 拼音持久化、评分、掌握度和复习（5.9P-A/B/C，2026-07-24）；
 - [x] 正式 Review Session 和移动端复习页（8.2B-R，2026-07-24）；
-- [ ] 生产 Curriculum Release 可在空数据库导入；
+- [x] 生产 Curriculum Release 可在空数据库导入（8.3E，2026-07-24）；
 - [ ] App 内账号删除和 Server/Local 清理；
 - [ ] 数据导出；
 - [ ] `en-US` 与 `zh-CN` 真实 UI，或商店/选择器与更小范围严格一致；

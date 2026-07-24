@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "curriculum-version-mapping-v1",
+  "fromVersion": null,
+  "toVersion": "1.0.0",
+  "mappings": [],
+  "notes": "First formal production release. Existing Demo and test Seed IDs are intentionally not promoted."
+}

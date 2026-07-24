@@ -843,3 +843,17 @@ The production Pinyin tab no longer renders six demos. It shows the current cach
 Pinyin progress, recommends continuing Pinyin or reviewing an unfinished tone Activity, and starts
 the same `/session` route as Learn. Historical mastery presentation and the formal Review Center
 remain owned by 8.2A-H and 8.2B-R; the tab does not create a client-side planner.
+
+### Implementation checkpoint: 8.3E
+
+As of 2026-07-24, a fresh PostgreSQL database can apply the forward-only migrations and import the
+formal `production-curriculum-release-v1` package transactionally. Review state, media
+authorization, bundled byte hashes, manifest identity, database constraints, explicit active-track
+selection, Learn/Review Session smoke, repeat import, old-Session pinning, and published-row
+immutability are tested. Session planners resolve only `active_curriculum_releases`; publication
+time is no longer an implicit selector.
+
+The first package is deliberately a limited starter release. Its checked-in coverage report records
+6 Hanzi, 4 words, 3 sentence patterns, and 1 short story against the Public V1 target of
+100/200/30/10. The pipeline is complete, but the remaining editorial coverage is still a release
+blocker and is not represented as finished production content.

@@ -137,8 +137,9 @@ whose visible/revealed state is the source of truth for evidence weighting. Task
 the versioned read-only Review Center API under session identity and forced RLS; it must not create
 sessions or mutate authoritative learning state. Task 8.3D productizes the fixed diagnostic as an
 onboarding flow with bounded local/offline state, forced-RLS summary persistence, and an initial
-planner prior that real Attempts replace. Task 8.3E is next, and Task 9.5R must rerun the full
-release audit before promotion. Tasks 6.1W–6.4W
+planner prior that real Attempts replace. Task 8.3E adds an immutable, explicitly activated formal
+Curriculum release pipeline with a truthful starter coverage report; Task 8.3C is next, and Task
+9.5R must rerun the full release audit before promotion. Tasks 6.1W–6.4W
 added an own-name-only normalized vector canvas, local per-user raw-stroke
 storage, reviewed offline stroke-order lessons, four deterministic bounded style previews, and
 local self-consistency feedback with a raw-free idempotent metadata API. Do not silently combine

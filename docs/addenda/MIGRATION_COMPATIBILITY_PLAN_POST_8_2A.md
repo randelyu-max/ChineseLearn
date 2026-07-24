@@ -20,8 +20,9 @@
 0011_pinyin_persistence_domain.sql
 0012_review_center_hardening.sql
 0013_diagnostic_runs.sql
-0014_profile_timezone.sql
-0015_account_deletion_support.sql   如设计确实需要服务端 tombstone/job
+0014_production_curriculum_releases.sql
+0015_profile_timezone.sql
+0016_account_deletion_support.sql   如设计确实需要服务端 tombstone/job
 ```
 
 ## 3. 兼容阶段

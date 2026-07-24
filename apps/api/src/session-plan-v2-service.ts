@@ -534,13 +534,12 @@ export async function loadAuthoritativePlanningStateV2(
        p.pinyin_support_mode,
        p.humor_preference
      from public.profiles p
-     cross join lateral (
-       select id, version, manifest_sha256
-       from public.curriculum_versions
-       where status = 'published'
-       order by published_at desc nulls last, created_at desc
-       limit 1
-     ) cv
+     join public.active_curriculum_releases acr
+       on acr.spoken_track = 'mandarin'
+      and acr.script_track::text = p.script_preference
+     join public.curriculum_versions cv
+       on cv.id = acr.curriculum_version_id
+      and cv.status = 'published'
      where p.id = $1`,
     [userId],
   );

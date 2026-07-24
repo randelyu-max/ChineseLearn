@@ -29,6 +29,19 @@ versioned result summary or a skip marker under forced per-user RLS. Raw audio i
 or stored. Terminal diagnostic rows are immutable; after deployment, roll back the application
 route and planner read before using a separately reviewed forward migration or database restore.
 
+Task 8.3E adds `0014_production_curriculum_releases.sql` and the immutable formal release importer:
+
+```powershell
+corepack pnpm db:migrate
+corepack pnpm db:import:curriculum
+corepack pnpm db:test:curriculum-release
+```
+
+The importer validates review and media authorization, hashes the package, stages all rows in one
+transaction, publishes them, and switches the explicit `active_curriculum_releases` pointer.
+Repeated import of the same hash is safe; a changed hash for the same release ID fails closed.
+Published rows cannot be changed in place.
+
 The API authenticates users with Better Auth, then runs private business queries as
 `hanziquest_app` with a transaction-local `app.current_user_id`. Forced PostgreSQL RLS prevents
 cross-user access. The mobile app never receives database credentials.

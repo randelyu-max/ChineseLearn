@@ -134,6 +134,65 @@ async function removePublishedPinyinFixture(): Promise<void> {
   }
 }
 
+async function removePublishedCurriculumFixture(): Promise<void> {
+  const cleanupClient = await pool.connect();
+  const triggers = [
+    ['curriculum_versions', 'curriculum_versions_published_immutable'],
+    ['worlds', 'worlds_published_immutable'],
+    ['units', 'units_published_immutable'],
+    ['lessons', 'lessons_published_immutable'],
+    ['lesson_concepts', 'lesson_concepts_published_immutable'],
+    ['confusable_pairs', 'confusable_pairs_published_immutable'],
+    ['characters', 'characters_published_immutable'],
+  ] as const;
+  try {
+    await cleanupClient.query('begin');
+    for (const [table, trigger] of triggers) {
+      await cleanupClient.query(`alter table public.${table} disable trigger ${trigger}`);
+    }
+    await cleanupClient.query(
+      `delete from public.active_curriculum_releases where curriculum_version_id = $1`,
+      [curriculumVersion],
+    );
+    await cleanupClient.query(`delete from public.curriculum_versions where id = $1`, [
+      curriculumVersion,
+    ]);
+    await cleanupClient.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
+    await cleanupClient.query(`delete from public.characters where id = any($1::uuid[])`, [
+      [conceptB, confusionConcept, safeConcept, unpublishedConcept],
+    ]);
+    for (const [table, trigger] of [...triggers].reverse()) {
+      await cleanupClient.query(`alter table public.${table} enable trigger ${trigger}`);
+    }
+    await cleanupClient.query('commit');
+  } catch (error) {
+    await cleanupClient.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    cleanupClient.release();
+  }
+}
+
+async function removePublishedLessonFixture(lessonId: string): Promise<void> {
+  const cleanupClient = await pool.connect();
+  try {
+    await cleanupClient.query('begin');
+    await cleanupClient.query(
+      'alter table public.lessons disable trigger lessons_published_immutable',
+    );
+    await cleanupClient.query('delete from public.lessons where id = $1', [lessonId]);
+    await cleanupClient.query(
+      'alter table public.lessons enable trigger lessons_published_immutable',
+    );
+    await cleanupClient.query('commit');
+  } catch (error) {
+    await cleanupClient.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    cleanupClient.release();
+  }
+}
+
 try {
   await client.query('begin');
   await client.query(
@@ -2278,7 +2337,7 @@ try {
     countsBeforeInvalidContent,
     'A materialization failure must not leave a partial Session or Activity',
   );
-  await pool.query(`delete from public.lessons where id = $1`, [invalidLesson]);
+  await removePublishedLessonFixture(invalidLesson);
 
   await pool.query(
     `update public.review_schedule
@@ -2393,15 +2452,7 @@ try {
 
   await pool.query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]]);
   await removePublishedPinyinFixture();
-  await pool.query(
-    `delete from public.active_curriculum_releases where curriculum_version_id = $1`,
-    [curriculumVersion],
-  );
-  await pool.query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion]);
-  await pool.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
-  await pool.query(`delete from public.characters where id = any($1::uuid[])`, [
-    [conceptB, confusionConcept, safeConcept, unpublishedConcept],
-  ]);
+  await removePublishedCurriculumFixture();
   console.log(
     'PostgreSQL integration passed: diagnostic persistence and cross-user RLS, Session Plan V2 learn/review materialization, Attempts V2 snapshot scoring, normalized Evidence replay, immutable/idempotent offline concurrency, terminal rejection, capability gating, lifecycle/active recovery, empty-result receipts without empty Sessions, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
   );
@@ -2411,22 +2462,7 @@ try {
     .query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]])
     .catch(() => undefined);
   await removePublishedPinyinFixture().catch(() => undefined);
-  await pool
-    .query(`delete from public.active_curriculum_releases where curriculum_version_id = $1`, [
-      curriculumVersion,
-    ])
-    .catch(() => undefined);
-  await pool
-    .query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion])
-    .catch(() => undefined);
-  await pool
-    .query(`delete from public.confusable_pairs where id = $1`, [confusionPair])
-    .catch(() => undefined);
-  await pool
-    .query(`delete from public.characters where id = any($1::uuid[])`, [
-      [conceptB, confusionConcept, safeConcept, unpublishedConcept],
-    ])
-    .catch(() => undefined);
+  await removePublishedCurriculumFixture().catch(() => undefined);
   throw error;
 } finally {
   if (!clientReleased) client.release();

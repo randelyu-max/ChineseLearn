@@ -12,8 +12,10 @@
     "test": "vitest run",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:import:pinyin": "tsx src/db/import-pinyin-content.ts",
+    "db:import:curriculum": "tsx src/db/import-production-curriculum.ts",
     "db:test": "tsx src/db/test-database.ts",
     "db:test:pinyin": "tsx src/db/test-pinyin-domain.ts",
+    "db:test:curriculum-release": "tsx src/db/test-production-curriculum-release.ts",
     "db:test:attempt-backfill": "tsx src/db/test-attempt-evidence-backfill.ts"
   },
   "dependencies": {

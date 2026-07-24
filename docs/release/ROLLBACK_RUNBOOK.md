@@ -11,6 +11,17 @@
 
 Never reset a remote database or edit an applied migration.
 
+## Production Curriculum Release
+
+Before promotion, record the current row in `active_curriculum_releases`. If a newly activated
+Curriculum is faulty, deploy an application version that does not request the faulty content and
+move the active pointer to a previously published compatible release in a reviewed transaction.
+Existing Sessions remain pinned to their original `curriculum_version_id`; do not rewrite them.
+
+Never edit or delete published Curriculum rows, the published import receipt, or an applied
+migration. If no compatible previous release exists, stop new Session creation and restore a
+verified database snapshot or ship a forward-only replacement release.
+
 ## Application rollback
 
 - Stop promotion of the candidate mobile build.
