@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 
 import {
+  DiagnosticResultSummarySchema,
   LearningExerciseSchema,
   LearningExerciseV2Schema,
   PINYIN_EXERCISES_CLIENT_CAPABILITY,
@@ -11,6 +12,7 @@ import {
   SessionPlanSnapshotV2Schema,
   type LearningExercise,
   type LearningExerciseV2,
+  type DiagnosticResultSummary,
   type EvidenceTargetV1,
   type PinyinLessonExerciseV1,
   type SessionPlanRequestV2,
@@ -93,6 +95,68 @@ type AttemptSignalRow = {
   hint_level: number;
 };
 
+type DiagnosticPriorRow = {
+  result_summary: unknown;
+  status: 'completed' | 'skipped';
+};
+
+export type DiagnosticPriorPolicy = Readonly<{
+  abilityEstimate: number | null;
+  newConceptLimit: 2 | 3 | 4;
+  pinyinSupportPreference: PinyinSupportPreference | null;
+  source: 'default' | 'diagnostic' | 'evidence';
+  startingPoint: DiagnosticResultSummary['recommendedStartingPoint'] | null;
+}>;
+
+export function resolveDiagnosticPriorPolicy(
+  result: DiagnosticResultSummary | null,
+  status: DiagnosticPriorRow['status'] | null,
+  acceptedAttemptCount: number,
+): DiagnosticPriorPolicy {
+  if (acceptedAttemptCount > 0) {
+    return {
+      abilityEstimate: null,
+      newConceptLimit: 4,
+      pinyinSupportPreference: null,
+      source: 'evidence',
+      startingPoint: null,
+    };
+  }
+  if (status === 'skipped') {
+    return {
+      abilityEstimate: null,
+      newConceptLimit: 2,
+      pinyinSupportPreference: 'adaptive',
+      source: 'default',
+      startingPoint: null,
+    };
+  }
+  if (result) {
+    const abilityEstimate =
+      Object.values(result.axes).reduce((total, axis) => total + axis.estimatedLevel / 4, 0) / 6;
+    return {
+      abilityEstimate,
+      newConceptLimit: ['spoken_audio_foundations', 'pinyin_foundations'].includes(
+        result.recommendedStartingPoint,
+      )
+        ? 2
+        : result.recommendedStartingPoint === 'short_sentence_reading'
+          ? 4
+          : 3,
+      pinyinSupportPreference: result.recommendedPinyinSupportMode,
+      source: 'diagnostic',
+      startingPoint: result.recommendedStartingPoint,
+    };
+  }
+  return {
+    abilityEstimate: null,
+    newConceptLimit: 4,
+    pinyinSupportPreference: null,
+    source: 'default',
+    startingPoint: null,
+  };
+}
+
 type ActiveSessionRow = {
   client_session_id: string;
   created_at: Date;
@@ -146,6 +210,7 @@ export type AuthoritativePlanningStateV2 = Readonly<{
     recentIndependentAccuracy: number;
   }>;
   recentPerformance: RecentPerformance;
+  startingPointSource?: 'diagnostic' | 'evidence' | 'default';
 }>;
 
 export function confidenceClosingMaterial(
@@ -551,6 +616,35 @@ export async function loadAuthoritativePlanningStateV2(
          limit 20`,
     [userId],
   );
+  const diagnosticPriorResult = await client.query<DiagnosticPriorRow>(
+    `select status, result_summary
+     from public.diagnostic_runs
+     where user_id = $1 and status in ('completed', 'skipped')
+     order by coalesce(completed_at, skipped_at) desc, id desc
+     limit 1`,
+    [userId],
+  );
+  const parsedPrior = DiagnosticResultSummarySchema.safeParse(
+    diagnosticPriorResult.rows[0]?.result_summary,
+  );
+  const priorPolicy = resolveDiagnosticPriorPolicy(
+    parsedPrior.success ? parsedPrior.data : null,
+    diagnosticPriorResult.rows[0]?.status ?? null,
+    attemptSignals.rows.length,
+  );
+  const diagnosticPrior =
+    priorPolicy.source === 'diagnostic' && parsedPrior.success ? parsedPrior.data : null;
+  const diagnosticAxisPriority =
+    diagnosticPrior?.recommendedStartingPoint === 'spoken_audio_foundations'
+      ? 'spoken_audio_comprehension'
+      : diagnosticPrior?.recommendedStartingPoint === 'hanzi_recognition_foundations'
+        ? 'hanzi_recognition'
+        : diagnosticPrior?.recommendedStartingPoint === 'word_reading'
+          ? 'word_reading'
+          : diagnosticPrior?.recommendedStartingPoint === 'sentence_reading' ||
+              diagnosticPrior?.recommendedStartingPoint === 'short_sentence_reading'
+            ? 'sentence_reading'
+            : null;
 
   const conceptsByLesson = new Map<string, LessonConceptRow[]>();
   for (const concept of lessonConcepts.rows) {
@@ -651,7 +745,11 @@ export async function loadAuthoritativePlanningStateV2(
         prerequisiteConceptIds: Object.freeze([]),
         scores: Object.freeze({
           confusion: confusionPenalty,
-          curriculumNeed: targetConcepts.some((target) => target.role === 'target') ? 1 : 0.5,
+          curriculumNeed: Math.min(
+            1,
+            (targetConcepts.some((target) => target.role === 'target') ? 1 : 0.5) +
+              (diagnosticAxisPriority === exerciseDimensions.abilityAxis ? 0.25 : 0),
+          ),
           interest: targetConcepts.some((target) => target.role === 'optional') ? 0.7 : 0.5,
           overdue: isDue ? 1 : 0,
           recentError: mastery < 0.5 ? 1 - mastery : 0,
@@ -734,7 +832,11 @@ export async function loadAuthoritativePlanningStateV2(
       const candidate = Object.freeze({
         confusion: 0,
         confusionPenalty: 0,
-        curriculumNeed: targetConcepts.some((target) => target.role === 'target') ? 1 : 0.5,
+        curriculumNeed: Math.min(
+          1,
+          (targetConcepts.some((target) => target.role === 'target') ? 1 : 0.5) +
+            (diagnosticPrior?.recommendedStartingPoint === 'pinyin_foundations' ? 0.25 : 0),
+        ),
         curriculumNodeId: lesson.lesson_id,
         difficulty,
         duePriority: isDue ? 1 : 0,
@@ -766,7 +868,7 @@ export async function loadAuthoritativePlanningStateV2(
   );
   const abilityEstimate =
     masteryValues.length === 0
-      ? 0.5
+      ? (priorPolicy.abilityEstimate ?? 0.5)
       : masteryValues.reduce((total, value) => total + value, 0) / masteryValues.length;
   const closingMaterial = confidenceClosingMaterial(hanziMaterials, abilityEstimate);
   if (closingMaterial) {
@@ -780,9 +882,37 @@ export async function loadAuthoritativePlanningStateV2(
   }
 
   const performance = performanceFromAttempts(attemptSignals.rows);
+  const newConceptLimit = priorPolicy.newConceptLimit;
+  const allowedNewConcepts = new Set<string>();
+  const withinDiagnosticLimit = (conceptIds: readonly string[], isNew: boolean) => {
+    if (
+      !isNew ||
+      priorPolicy.source === 'evidence' ||
+      (priorPolicy.source === 'default' && newConceptLimit === 4)
+    )
+      return true;
+    const additions = conceptIds.filter((conceptId) => !allowedNewConcepts.has(conceptId));
+    if (allowedNewConcepts.size + additions.length > newConceptLimit) return false;
+    additions.forEach((conceptId) => allowedNewConcepts.add(conceptId));
+    return true;
+  };
+  const pinyinFirst =
+    diagnosticPrior?.recommendedStartingPoint === 'pinyin_foundations' ||
+    diagnosticPrior?.recommendedStartingPoint === 'spoken_audio_foundations';
+  const filterHanzi = () =>
+    candidates.filter((candidate) =>
+      withinDiagnosticLimit(candidate.targetConceptIds, candidate.category === 'new_content'),
+    );
+  const filterPinyin = () =>
+    pinyinCandidates.filter((candidate) =>
+      withinDiagnosticLimit(candidate.targetConceptIds, candidate.kind === 'new'),
+    );
+  const limitedPinyinCandidates = pinyinFirst ? filterPinyin() : [];
+  const limitedCandidates = filterHanzi();
+  const finalPinyinCandidates = pinyinFirst ? limitedPinyinCandidates : filterPinyin();
   return Object.freeze({
     abilityEstimate,
-    candidates: Object.freeze(candidates),
+    candidates: Object.freeze(limitedCandidates),
     contentManifestSha256: authority.manifest_sha256,
     contentVersion: authority.curriculum_version,
     curriculumVersionId: authority.curriculum_version_id,
@@ -796,10 +926,11 @@ export async function loadAuthoritativePlanningStateV2(
       ),
     ]),
     materialsByCandidateId,
-    pinyinCandidates: Object.freeze(pinyinCandidates),
-    pinyinSupportPreference: authority.pinyin_support_mode,
+    pinyinCandidates: Object.freeze(finalPinyinCandidates),
+    pinyinSupportPreference: priorPolicy.pinyinSupportPreference ?? authority.pinyin_support_mode,
     pinyinSupportSignals: Object.freeze(performance.pinyinSupportSignals),
     recentPerformance: Object.freeze(performance.recentPerformance),
+    startingPointSource: priorPolicy.source,
   });
 }
 

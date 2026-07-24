@@ -135,8 +135,10 @@ skill/review replay, cross-user RLS coverage, and mobile outbox synchronization.
 5.8P added deterministic, accessible Pinyin exercises plus a versioned adaptive support runtime
 whose visible/revealed state is the source of truth for evidence weighting. Task 8.2A added only
 the versioned read-only Review Center API under session identity and forced RLS; it must not create
-sessions or mutate authoritative learning state. Task 8.2B remains pending, the Review tab is still
-a placeholder, and Task 9.5R must rerun the full release audit before promotion. Tasks 6.1W–6.4W
+sessions or mutate authoritative learning state. Task 8.3D productizes the fixed diagnostic as an
+onboarding flow with bounded local/offline state, forced-RLS summary persistence, and an initial
+planner prior that real Attempts replace. Task 8.3E is next, and Task 9.5R must rerun the full
+release audit before promotion. Tasks 6.1W–6.4W
 added an own-name-only normalized vector canvas, local per-user raw-stroke
 storage, reviewed offline stroke-order lessons, four deterministic bounded style previews, and
 local self-consistency feedback with a raw-free idempotent metadata API. Do not silently combine
@@ -149,6 +151,6 @@ simplified/traditional targets and answers, neutral fallbacks, and content valid
 Published content is immutable; changes require a new content version and renewed review.
 The historical Task 8.0 and Task 8.2A checkpoint evidence is recorded in
 `docs/release/V1_RELEASE_CHECKLIST.md`; every red or pending promotion gate must be resolved and the
-full suite rerun under Task 9.5R before release. The current session-plan contract has no review
-intent, so Task 8.2B must explicitly review the smallest versioned extension and must not introduce
-a second planner.
+full suite rerun under Task 9.5R before release. Session Plan V2 supports both learn and review
+intents; Review Center remains read-only and the formal Review Center mobile flow must continue to
+use the shared planner rather than introducing a second planner.

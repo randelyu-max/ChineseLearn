@@ -1,4 +1,5 @@
 export * from './attempt.ts';
+export * from './diagnostic.ts';
 export * from './error.ts';
 export * from './exercise.ts';
 export * from './exercise-v2.ts';

@@ -505,6 +505,11 @@ fatal_content_error
 - 结果持久化；
 - 起点和拼音模式应用。
 
+Task 8.3D 已完成上述产品化：移动端使用固定 `diagnostic-content-v1.0.0` 题包和
+`local-diagnostic-v1` 按用户保存暂停/离线进度；服务器使用 `diagnostic-run-v1`
+认证接口与强制 RLS，只保存完成摘要或跳过标记。Planner 仅在尚无真实 Attempts 时
+应用诊断先验；第一条真实 Attempt 后完全回到 Evidence。
+
 建议新增 `diagnostic_runs`，只保存：
 
 - user_id

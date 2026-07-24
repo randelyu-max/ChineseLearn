@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import {
   AttemptsBatchRequestSchema,
   AttemptsBatchRequestV2Schema,
+  DiagnosticMutationSchema,
   SessionPlanRequestV2Schema,
   SignaturePracticeMetricEventSchema,
   SignatureProjectInputSchema,
@@ -24,6 +25,7 @@ import {
   AttemptsBatchV2ServiceError,
   processAttemptsBatchV2,
 } from '../attempts-batch-v2-service.js';
+import { loadDiagnosticRun, mutateDiagnosticRun } from '../diagnostic-service.js';
 import { loadReviewCenter, resolveReviewCenterPagination } from '../review-center-service.js';
 import {
   loadActiveSession,
@@ -42,6 +44,7 @@ async function count(client: PoolClient, table: string): Promise<number> {
     'attempt_batch_v2_events',
     'attempt_evidence',
     'confusion_stats',
+    'diagnostic_runs',
     'learning_session_activities',
     'learning_session_lifecycle_events',
     'learning_session_plan_v2_events',
@@ -64,6 +67,7 @@ const client = await pool.connect();
 let clientReleased = false;
 const userA = randomUUID();
 const userB = randomUUID();
+const diagnosticRunA = randomUUID();
 const curriculumVersion = randomUUID();
 const sessionB = randomUUID();
 const sessionActivityB = randomUUID();
@@ -1158,6 +1162,84 @@ try {
   await client.query('commit');
   client.release();
   clientReleased = true;
+
+  const diagnosticStart = DiagnosticMutationSchema.parse({
+    schemaVersion: 'diagnostic-run-v1',
+    action: 'start',
+    runId: diagnosticRunA,
+    idempotencyKey: `diagnostic:start:${diagnosticRunA}`,
+    algorithmVersion: 'diagnostic-v1',
+    contentVersion: 'diagnostic-content-v1.0.0',
+    startedAt: '2026-07-24T10:00:00.000Z',
+  });
+  const startedDiagnostic = await withUserTransaction(pool, userA, (transaction) =>
+    mutateDiagnosticRun(transaction, userA, diagnosticStart),
+  );
+  assert.equal(startedDiagnostic?.status, 'in_progress');
+  assert.equal(
+    await withUserTransaction(pool, userB, (transaction) => loadDiagnosticRun(transaction, userB)),
+    null,
+    'User B must not read User A diagnostic runs',
+  );
+  assert.equal(
+    await withUserTransaction(pool, userA, (transaction) => loadDiagnosticRun(transaction, userB)),
+    null,
+    'A forged internal user ID must still be denied by forced RLS',
+  );
+  let forgedDiagnosticInsertRejected = false;
+  try {
+    await withUserTransaction(pool, userA, (transaction) =>
+      mutateDiagnosticRun(
+        transaction,
+        userB,
+        DiagnosticMutationSchema.parse({
+          ...diagnosticStart,
+          runId: randomUUID(),
+          idempotencyKey: `diagnostic:start:${randomUUID()}`,
+        }),
+      ),
+    );
+  } catch {
+    forgedDiagnosticInsertRejected = true;
+  }
+  assert.equal(forgedDiagnosticInsertRejected, true, 'A forged diagnostic user ID must be denied');
+  const diagnosticComplete = DiagnosticMutationSchema.parse({
+    schemaVersion: 'diagnostic-run-v1',
+    action: 'complete',
+    runId: diagnosticRunA,
+    idempotencyKey: `diagnostic:complete:${diagnosticRunA}`,
+    result: {
+      algorithmVersion: 'diagnostic-v1',
+      axes: Object.fromEntries(
+        [
+          'spoken_audio_comprehension',
+          'pinyin_recognition',
+          'tone_discrimination',
+          'hanzi_recognition',
+          'word_reading',
+          'sentence_reading',
+        ].map((axis) => [axis, { estimatedLevel: 2, confidence: 0.75, observedEvidenceCount: 4 }]),
+      ),
+      durationMs: 120_000,
+      observedEvidenceCount: 24,
+      recommendedPinyinSupportMode: 'adaptive',
+      recommendedStartingPoint: 'word_reading',
+      seed: 'database-fixture',
+      stopReason: 'confidence_reached',
+    },
+  });
+  const completedDiagnostic = await withUserTransaction(pool, userA, (transaction) =>
+    mutateDiagnosticRun(transaction, userA, diagnosticComplete),
+  );
+  assert.equal(completedDiagnostic?.status, 'completed');
+  assert.equal(completedDiagnostic?.result?.recommendedStartingPoint, 'word_reading');
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      mutateDiagnosticRun(transaction, userA, diagnosticComplete),
+    ),
+    completedDiagnostic,
+    'A completed diagnostic mutation must replay without changing the terminal result',
+  );
 
   const concurrentEvent = randomUUID();
   const concurrentRequest = AttemptsBatchRequestSchema.parse({
@@ -2321,7 +2403,7 @@ try {
     [conceptB, confusionConcept, safeConcept, unpublishedConcept],
   ]);
   console.log(
-    'PostgreSQL integration passed: Session Plan V2 learn/review materialization, Attempts V2 snapshot scoring, normalized Evidence replay, immutable/idempotent offline concurrency, terminal rejection, capability gating, lifecycle/active recovery, empty-result receipts without empty Sessions, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
+    'PostgreSQL integration passed: diagnostic persistence and cross-user RLS, Session Plan V2 learn/review materialization, Attempts V2 snapshot scoring, normalized Evidence replay, immutable/idempotent offline concurrency, terminal rejection, capability gating, lifecycle/active recovery, empty-result receipts without empty Sessions, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
   );
 } catch (error) {
   if (!clientReleased) await client.query('rollback').catch(() => undefined);

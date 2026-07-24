@@ -140,7 +140,7 @@ export default function OnboardingScreen() {
           setSaving(false);
           if (result.ok) {
             acceptProfile(result.value);
-            router.replace((editing ? '/(tabs)/me' : '/') as Href);
+            router.replace((editing ? '/(tabs)/me' : '/diagnostic') as Href);
           } else {
             setNotice('暂时无法保存设置，请稍后重试。');
           }

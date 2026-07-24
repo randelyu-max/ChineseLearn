@@ -1,4 +1,4 @@
-import { learningExerciseV2Fixtures } from '@hanziquest/contracts';
+import { DiagnosticResultSummarySchema, learningExerciseV2Fixtures } from '@hanziquest/contracts';
 import type { HanziPlanningCandidate, PinyinPlanningCandidate } from '@hanziquest/learning-engine';
 import { describe, expect, it } from 'vitest';
 
@@ -8,6 +8,7 @@ import {
   confidenceClosingPinyinMaterial,
   contentSha256,
   PINYIN_SESSION_V2_CAPABILITY,
+  resolveDiagnosticPriorPolicy,
   SessionPlanV2ServiceError,
   type AuthoritativePlanningStateV2,
   type MaterializableCandidate,
@@ -17,6 +18,25 @@ const sessionId = '81000000-0000-4000-8000-000000000001';
 const clientSessionId = '81000000-0000-4000-8000-000000000002';
 const curriculumVersionId = '81000000-0000-4000-8000-000000000003';
 const createdAt = new Date('2026-07-24T12:00:00.000Z');
+const diagnosticResult = DiagnosticResultSummarySchema.parse({
+  algorithmVersion: 'diagnostic-v1',
+  axes: Object.fromEntries(
+    [
+      'spoken_audio_comprehension',
+      'pinyin_recognition',
+      'tone_discrimination',
+      'hanzi_recognition',
+      'word_reading',
+      'sentence_reading',
+    ].map((axis) => [axis, { confidence: 0.75, estimatedLevel: 1, observedEvidenceCount: 4 }]),
+  ),
+  durationMs: 120_000,
+  observedEvidenceCount: 24,
+  recommendedPinyinSupportMode: 'always',
+  recommendedStartingPoint: 'pinyin_foundations',
+  seed: 'planner-prior',
+  stopReason: 'confidence_reached',
+});
 
 function candidate(
   id: string,
@@ -334,5 +354,33 @@ describe('Session Plan V2 materializer', () => {
     expect(closing?.candidate.id).toBe(`${candidate.id}:confidence-close`);
     expect(closing?.candidate.kind).toBe('review');
     expect(closing?.candidate.supportBoost).toBeGreaterThanOrEqual(0.65);
+  });
+
+  it('applies a bounded diagnostic prior before real learning Evidence exists', () => {
+    expect(resolveDiagnosticPriorPolicy(diagnosticResult, 'completed', 0)).toMatchObject({
+      abilityEstimate: 0.25,
+      newConceptLimit: 2,
+      pinyinSupportPreference: 'always',
+      source: 'diagnostic',
+      startingPoint: 'pinyin_foundations',
+    });
+  });
+
+  it('lets accepted Attempts replace every diagnostic starting-point decision', () => {
+    expect(resolveDiagnosticPriorPolicy(diagnosticResult, 'completed', 1)).toEqual({
+      abilityEstimate: null,
+      newConceptLimit: 4,
+      pinyinSupportPreference: null,
+      source: 'evidence',
+      startingPoint: null,
+    });
+  });
+
+  it('uses the low-pressure adaptive default after a skip', () => {
+    expect(resolveDiagnosticPriorPolicy(null, 'skipped', 0)).toMatchObject({
+      newConceptLimit: 2,
+      pinyinSupportPreference: 'adaptive',
+      source: 'default',
+    });
   });
 });

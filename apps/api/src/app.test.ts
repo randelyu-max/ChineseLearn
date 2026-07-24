@@ -60,6 +60,15 @@ describe('API app', () => {
     });
   });
 
+  it('denies diagnostic access without a session', async () => {
+    const response = await createApp(config, auth, pool).request('/api/diagnostic');
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      apiVersion: 'v1',
+      error: { code: 'UNAUTHENTICATED' },
+    });
+  });
+
   it('denies signature practice metadata access without a session', async () => {
     const response = await createApp(config, auth, pool).request(
       '/api/signature-practice/project',

@@ -24,6 +24,11 @@ The import is transactional and idempotent. It verifies the bundled audio bytes 
 declared SHA-256 hashes before writing. Published Pinyin rows are immutable; deploy a new content
 version rather than editing them. The runtime application role can read published rows only.
 
+Task 8.3D adds forward-only migration `0013_diagnostic_runs.sql`. It stores only a bounded,
+versioned result summary or a skip marker under forced per-user RLS. Raw audio is never collected
+or stored. Terminal diagnostic rows are immutable; after deployment, roll back the application
+route and planner read before using a separately reviewed forward migration or database restore.
+
 The API authenticates users with Better Auth, then runs private business queries as
 `hanziquest_app` with a transaction-local `app.current_user_id`. Forced PostgreSQL RLS prevents
 cross-user access. The mobile app never receives database credentials.

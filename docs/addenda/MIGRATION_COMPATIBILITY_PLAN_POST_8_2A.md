@@ -15,11 +15,13 @@
 ```text
 0007_session_activity_snapshots.sql
 0008_session_lifecycle.sql
-0009_attempt_evidence.sql
-0010_pinyin_domain.sql
-0011_diagnostic_runs.sql
-0012_profile_timezone.sql
-0013_account_deletion_support.sql   如设计确实需要服务端 tombstone/job
+0009_session_plan_v2_materialization.sql
+0010_attempts_v2_normalized_evidence.sql
+0011_pinyin_persistence_domain.sql
+0012_review_center_hardening.sql
+0013_diagnostic_runs.sql
+0014_profile_timezone.sql
+0015_account_deletion_support.sql   如设计确实需要服务端 tombstone/job
 ```
 
 ## 3. 兼容阶段

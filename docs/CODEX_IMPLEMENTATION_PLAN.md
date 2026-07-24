@@ -4,7 +4,7 @@ Status: Task 8.2A restored only the Review Center read model/API. The old direct
 Task 9.5R sequence is **SUPERSEDED** by
 [`docs/addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md`](addenda/CODEX_REMEDIATION_PLAN_POST_8_2A.md)
 and `TASK_MANIFEST_POST_8_2A.yaml`. The current stage is Closed Alpha, not a public V1 release
-candidate. Task 8.2B-R is complete; the next dependency-scoped task is 8.3D.
+candidate. Task 8.3D is complete; the next dependency-scoped task is 8.3E.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
