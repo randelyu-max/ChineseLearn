@@ -108,4 +108,16 @@ an idempotent approved-release import, and canonical/surface Pinyin reading cont
 RLS, invalid-combination, unpublished-filter, and PostgreSQL 17 tests passed. Pinyin planning and
 Attempts capabilities remain explicitly disabled.
 
-The next unique task is `5.9P-B — Pinyin server scoring and Evidence`.
+## Task 5.9P-B completion checkpoint
+
+Task 5.9P-B completed on 2026-07-24. The server now plans and authoritatively scores all six formal
+Pinyin exercise types from immutable Activity Snapshots, emits normalized multi-target Evidence,
+replays versioned Pinyin BKT state and Review Schedule rows, and exposes real `pinyin` and `tone`
+Review Center groups. Published lesson material must use the strict `pinyin-lesson-exercise-v1`
+wrapper and reference eligible published Lesson concepts.
+
+The server capability is open, but Session Plan V2 requires the explicit
+`pinyin-exercises-v1` client capability. Existing mobile clients do not send it, so they continue
+to receive only the four known Hanzi types. No database migration was needed beyond the additive
+Task 5.9P-A domain. The next unique task is
+`5.9P-C — Pinyin integration into the universal Runner`.

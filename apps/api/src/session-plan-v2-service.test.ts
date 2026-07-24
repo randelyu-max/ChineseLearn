@@ -1,10 +1,11 @@
 import { learningExerciseV2Fixtures } from '@hanziquest/contracts';
-import type { HanziPlanningCandidate } from '@hanziquest/learning-engine';
+import type { HanziPlanningCandidate, PinyinPlanningCandidate } from '@hanziquest/learning-engine';
 import { describe, expect, it } from 'vitest';
 
 import {
   buildMaterializedSessionPlanV2,
   confidenceClosingMaterial,
+  confidenceClosingPinyinMaterial,
   contentSha256,
   PINYIN_SESSION_V2_CAPABILITY,
   SessionPlanV2ServiceError,
@@ -52,7 +53,7 @@ function material(
   conceptType: 'character' | 'sentence' | 'word',
   abilityAxis:
     'hanzi_recognition' | 'sentence_reading' | 'spoken_audio_comprehension' | 'word_reading',
-): MaterializableCandidate {
+): MaterializableCandidate & Readonly<{ candidate: HanziPlanningCandidate }> {
   const exercise = learningExerciseV2Fixtures[exerciseIndex];
   const skill = exercise.type;
   if (
@@ -65,10 +66,16 @@ function material(
   }
   return {
     candidate: planned,
-    dimensions: { abilityAxis, conceptType, skill },
+    evidenceTargets: planned.targetConceptIds.map((conceptId, targetIndex) => ({
+      schemaVersion: 'evidence-target-v1',
+      conceptType,
+      conceptId,
+      skill,
+      abilityAxis,
+      role: targetIndex === 0 ? 'primary' : 'secondary',
+    })),
     exercise,
     lessonId: planned.curriculumNodeId,
-    targetConceptIds: planned.targetConceptIds,
   };
 }
 
@@ -94,6 +101,7 @@ function state(): AuthoritativePlanningStateV2 {
       [dueActivity.id, material(dueActivity, 2, 'word', 'word_reading')],
       [closeActivity.id, material(closeActivity, 1, 'character', 'hanzi_recognition')],
     ]),
+    pinyinCandidates: [],
     pinyinSupportPreference: 'adaptive',
     pinyinSupportSignals: {
       consecutiveErrors: 0,
@@ -125,6 +133,56 @@ function activityIds() {
   return () => `83000000-0000-4000-8000-${String(++index).padStart(12, '0')}`;
 }
 
+function stateWithPinyin(): AuthoritativePlanningStateV2 {
+  const source = state();
+  const lessonId = source.eligibleCurriculumNodeIds[0]!;
+  const pinyinConceptId = '82000000-0000-4000-8000-000000000021';
+  const pinyinCandidate = {
+    confusion: 0,
+    confusionPenalty: 0,
+    curriculumNeed: 1,
+    curriculumNodeId: lessonId,
+    difficulty: 0.1,
+    duePriority: 1,
+    estimatedSeconds: 45,
+    id: 'candidate.pinyin-tone',
+    interest: 0.5,
+    kind: 'review',
+    prerequisiteConceptIds: [],
+    recentError: 0.4,
+    skillType: 'tone',
+    supportBoost: 0,
+    targetConceptIds: [pinyinConceptId],
+    weakness: 0.4,
+  } satisfies PinyinPlanningCandidate;
+  const exercise = learningExerciseV2Fixtures[8];
+  return {
+    ...source,
+    pinyinCandidates: [pinyinCandidate],
+    materialsByCandidateId: new Map([
+      ...source.materialsByCandidateId,
+      [
+        pinyinCandidate.id,
+        {
+          candidate: pinyinCandidate,
+          evidenceTargets: [
+            {
+              schemaVersion: 'evidence-target-v1',
+              conceptType: 'pinyin',
+              conceptId: pinyinConceptId,
+              skill: 'tone_choice',
+              abilityAxis: 'tone_discrimination',
+              role: 'primary',
+            },
+          ],
+          exercise,
+          lessonId,
+        } satisfies MaterializableCandidate,
+      ],
+    ]),
+  };
+}
+
 describe('Session Plan V2 materializer', () => {
   it('creates a deterministic multi-Lesson immutable snapshot with fixed hashes', () => {
     const first = buildMaterializedSessionPlanV2(
@@ -150,8 +208,8 @@ describe('Session Plan V2 materializer', () => {
     expect(first?.humorPreference).toBe('light');
   });
 
-  it('emits only the four server-capable Hanzi exercise types', () => {
-    expect(PINYIN_SESSION_V2_CAPABILITY).toEqual({ attempts: false, planning: false });
+  it('keeps old clients on the four Hanzi exercise types', () => {
+    expect(PINYIN_SESSION_V2_CAPABILITY).toEqual({ attempts: true, planning: true });
     const snapshot = buildMaterializedSessionPlanV2(
       request(),
       state(),
@@ -164,6 +222,33 @@ describe('Session Plan V2 materializer', () => {
     expect(snapshot?.activities.some((activity) => activity.exerciseType.includes('pinyin'))).toBe(
       false,
     );
+  });
+
+  it('materializes a formal Pinyin exercise only for a capable client', () => {
+    const source = stateWithPinyin();
+    const oldClient = buildMaterializedSessionPlanV2(
+      request(),
+      source,
+      sessionId,
+      createdAt,
+      activityIds(),
+    );
+    const capableClient = buildMaterializedSessionPlanV2(
+      {
+        ...request(),
+        clientCapabilities: ['pinyin-exercises-v1'],
+      },
+      source,
+      sessionId,
+      createdAt,
+      activityIds(),
+    );
+    expect(oldClient?.activities.some((activity) => activity.exerciseType === 'tone_choice')).toBe(
+      false,
+    );
+    expect(
+      capableClient?.activities.some((activity) => activity.exerciseType === 'tone_choice'),
+    ).toBe(true);
   });
 
   it('keeps a review plan limited to the authoritative due candidate set', () => {
@@ -235,5 +320,19 @@ describe('Session Plan V2 materializer', () => {
       'candidate.z-safe:confidence-close',
     );
     expect(confidenceClosingMaterial([unsafeMaterial], 0.15)).toBeNull();
+  });
+
+  it('preserves the confidence-closing invariant for a Pinyin-only review pool', () => {
+    const source = stateWithPinyin();
+    const candidate = source.pinyinCandidates[0]!;
+    const sourceMaterial = source.materialsByCandidateId.get(candidate.id)!;
+    const material = {
+      ...sourceMaterial,
+      candidate,
+    } satisfies MaterializableCandidate & Readonly<{ candidate: PinyinPlanningCandidate }>;
+    const closing = confidenceClosingPinyinMaterial([material], 0.5);
+    expect(closing?.candidate.id).toBe(`${candidate.id}:confidence-close`);
+    expect(closing?.candidate.kind).toBe('review');
+    expect(closing?.candidate.supportBoost).toBeGreaterThanOrEqual(0.65);
   });
 });

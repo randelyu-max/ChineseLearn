@@ -5,6 +5,7 @@ export * from './exercise-v2.ts';
 export * from './exercise-v2.fixtures.ts';
 export * from './ids.ts';
 export * from './pinyin.ts';
+export * from './pinyin-session-material.ts';
 export * from './response.ts';
 export * from './review-center.ts';
 export * from './session-lifecycle.ts';

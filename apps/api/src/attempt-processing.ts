@@ -3,8 +3,10 @@ import {
   type AttemptDraft,
   type AttemptPinyinSupport,
   type LearningExercise,
+  type LearningExerciseV2,
 } from '@hanziquest/contracts';
 import {
+  bktParametersForExerciseType,
   calculateExerciseQuality,
   calculatePinyinEvidenceWeighting,
   exerciseBktParameters,
@@ -167,7 +169,7 @@ export function answerMatchesExercise(attempt: AttemptDraft, exercise: LearningE
 
 export function replaySkillState(
   attempts: readonly ReplayAttempt[],
-  activityType: EvaluatedAttempt['activityType'],
+  activityType: LearningExerciseV2['type'],
 ) {
   const ordered = [...attempts].sort(
     (left, right) =>
@@ -180,12 +182,7 @@ export function replaySkillState(
   let independentCorrectCount = 0;
   let hintedCorrectCount = 0;
   let incorrectCount = 0;
-  const parameters =
-    activityType === 'audio_to_glyph'
-      ? exerciseBktParameters.audio_to_glyph_four_choice
-      : activityType === 'glyph_to_image'
-        ? exerciseBktParameters.glyph_to_image
-        : exerciseBktParameters.word_build;
+  const parameters = bktParametersForExerciseType(activityType);
   for (const attempt of ordered) {
     mastery = updateMastery(mastery, attempt.correct, attempt.evidenceWeight, parameters).mastery;
     if (attempt.correct) {

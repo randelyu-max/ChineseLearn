@@ -9,6 +9,7 @@ import {
 import { SessionPlanSnapshotSchema } from './session-plan.ts';
 import { createApiSuccessResponseSchema } from './response.ts';
 import { UtcDateTimeSchema } from './time.ts';
+import { PINYIN_EXERCISES_CLIENT_CAPABILITY } from './pinyin-session-material.ts';
 
 export const SESSION_PLAN_REQUEST_V2_SCHEMA_VERSION = 'session-plan-request-v2' as const;
 export const SESSION_PLAN_SNAPSHOT_V2_SCHEMA_VERSION = 'session-plan-snapshot-v2' as const;
@@ -23,6 +24,7 @@ export const SessionPlanRequestV2Schema = z
     idempotencyKey: IdempotencyKeySchema,
     intent: SessionIntentSchema,
     targetMinutes: z.number().int().min(3).max(20),
+    clientCapabilities: z.array(z.literal(PINYIN_EXERCISES_CLIENT_CAPABILITY)).max(8).optional(),
   })
   .strict();
 

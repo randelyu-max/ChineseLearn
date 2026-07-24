@@ -84,6 +84,32 @@ describe('authoritative attempt processing', () => {
     );
   });
 
+  it('replays Pinyin tone Evidence deterministically with the versioned BKT row', () => {
+    const earlier = {
+      correct: false,
+      deviceEventAt: new Date('2026-07-23T10:00:00.000Z'),
+      evidenceWeight: 0,
+      hintLevel: 0,
+      id: 'pinyin-a',
+      offlineSequence: 1,
+      pinyinSupport: 'none' as const,
+    };
+    const later = {
+      correct: true,
+      deviceEventAt: new Date('2026-07-23T10:01:00.000Z'),
+      evidenceWeight: 0.9,
+      hintLevel: 0,
+      id: 'pinyin-b',
+      offlineSequence: 2,
+      pinyinSupport: 'none' as const,
+    };
+    const chronological = replaySkillState([earlier, later], 'tone_choice');
+    expect(replaySkillState([later, earlier], 'tone_choice')).toEqual(chronological);
+    expect(chronological.exposureCount).toBe(2);
+    expect(chronological.independentCorrectCount).toBe(1);
+    expect(chronological.review.reason).toBe('retrieval_success');
+  });
+
   it('does not count Pinyin-supported answers as independent Hanzi successes', () => {
     const state = replaySkillState(
       [

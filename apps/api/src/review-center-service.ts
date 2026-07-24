@@ -268,7 +268,8 @@ export async function loadReviewCenter(
              then coalesce(nullif(c.traditional_glyph, ''), c.simplified_glyph)
            else c.simplified_glyph
          end as display_label,
-         nullif(array_to_string(c.pinyin_syllables, ' '), '') as secondary_label
+         nullif(array_to_string(c.pinyin_syllables, ' '), '') as secondary_label,
+         null::text as pinyin_kind
        from public.characters c
        cross join profile_settings ps
        where c.is_published
@@ -288,7 +289,8 @@ export async function loadReviewCenter(
              then coalesce(nullif(w.traditional_text, ''), w.simplified_text)
            else w.simplified_text
          end,
-         nullif(w.pinyin, '')
+         nullif(w.pinyin, ''),
+         null::text
        from public.words w
        cross join profile_settings ps
        where w.is_published
@@ -308,6 +310,7 @@ export async function loadReviewCenter(
              then coalesce(nullif(s.traditional_text, ''), s.simplified_text)
            else s.simplified_text
          end,
+         null::text,
          null::text
        from public.sentences s
        cross join profile_settings ps
@@ -324,7 +327,8 @@ export async function loadReviewCenter(
          s.id,
          'story:' || s.id::text,
          s.title_zh,
-         nullif(s.title_en, '')
+         nullif(s.title_en, ''),
+         null::text
        from public.stories s
        join active_curriculum ac on ac.id = s.curriculum_version_id
        where s.is_published and s.approved_at is not null
@@ -333,6 +337,23 @@ export async function loadReviewCenter(
            from public.lesson_concepts lc
            join published_lessons pl on pl.id = lc.lesson_id
            where lc.concept_type = 'story' and lc.concept_id = s.id
+         )
+       union all
+       select
+         'pinyin',
+         pc.id,
+         'pinyin:' || pc.id::text,
+         pc.display_value,
+         coalesce(nullif(pc.numbered_value, ''), nullif(pc.canonical_value, '')),
+         pc.kind::text
+       from public.pinyin_concepts pc
+       join active_curriculum ac on ac.id = pc.curriculum_version_id
+       where pc.is_published
+         and exists (
+           select 1
+           from public.lesson_concepts lc
+           join published_lessons pl on pl.id = lc.lesson_id
+           where lc.concept_type = 'pinyin' and lc.concept_id = pc.id
          )
      ),
      latest_attempts as (
@@ -351,6 +372,8 @@ export async function loadReviewCenter(
          'review:' || r.concept_type::text || ':' || r.concept_id::text || ':' ||
            r.skill::text as review_key,
          case
+           when pc.concept_type = 'pinyin' and pc.pinyin_kind = 'tone' then 'tone'
+           when pc.concept_type = 'pinyin' then 'pinyin'
            when r.skill::text = 'glyph_to_sound' then 'pinyin'
            when pc.concept_type = 'character' then 'hanzi'
            when pc.concept_type = 'word' then 'word'
@@ -368,6 +391,8 @@ export async function loadReviewCenter(
            else 'scheduled_review'
          end as reason_code,
          case
+           when pc.concept_type = 'pinyin' and pc.pinyin_kind = 'tone' then 45
+           when pc.concept_type = 'pinyin' then 50
            when r.skill::text = 'glyph_to_sound' then 50
            when pc.concept_type = 'character' then 60
            when pc.concept_type = 'word' then 75

@@ -198,12 +198,12 @@ try {
   await client.query('reset role');
 
   assert.deepEqual(PINYIN_SESSION_V2_CAPABILITY, {
-    attempts: false,
-    planning: false,
+    attempts: true,
+    planning: true,
   });
 
   console.log(
-    `Pinyin PostgreSQL integration passed: ${first.conceptCount} concepts, idempotent import, constraints, immutable publication, audio metadata, reading round-trip, RLS publication filter, and capability guard verified.`,
+    `Pinyin PostgreSQL integration passed: ${first.conceptCount} concepts, idempotent import, constraints, immutable publication, audio metadata, reading round-trip, RLS publication filter, and server capability verified.`,
   );
   await client.query('rollback');
 } catch (error) {

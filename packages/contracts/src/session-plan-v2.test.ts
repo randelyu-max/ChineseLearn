@@ -101,6 +101,20 @@ describe('Session Plan V2', () => {
     expect(SessionPlanRequestV2Schema.safeParse({ ...base, intent: 'learn' }).success).toBe(true);
     expect(SessionPlanRequestV2Schema.safeParse({ ...base, intent: 'review' }).success).toBe(true);
     expect(
+      SessionPlanRequestV2Schema.safeParse({
+        ...base,
+        intent: 'learn',
+        clientCapabilities: ['pinyin-exercises-v1'],
+      }).success,
+    ).toBe(true);
+    expect(
+      SessionPlanRequestV2Schema.safeParse({
+        ...base,
+        intent: 'learn',
+        clientCapabilities: ['unknown-capability'],
+      }).success,
+    ).toBe(false);
+    expect(
       SessionPlanRequestV2Schema.safeParse({ ...base, intent: 'learn', userId: 'forged' }).success,
     ).toBe(false);
   });

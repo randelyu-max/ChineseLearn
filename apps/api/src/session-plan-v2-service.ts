@@ -3,12 +3,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import {
   LearningExerciseSchema,
   LearningExerciseV2Schema,
+  PINYIN_EXERCISES_CLIENT_CAPABILITY,
+  PinyinLessonExerciseV1Schema,
   SessionActivitySnapshotV2Schema,
   SessionPlanResultV2Schema,
   SessionPlanSnapshotSchema,
   SessionPlanSnapshotV2Schema,
   type LearningExercise,
   type LearningExerciseV2,
+  type EvidenceTargetV1,
+  type PinyinLessonExerciseV1,
   type SessionPlanRequestV2,
   type SessionPlanResultV2,
   type SessionPlanSnapshotV2,
@@ -17,6 +21,7 @@ import {
   buildPinyinIntegratedSessionPlan,
   calculatePredictedSuccess,
   type HanziPlanningCandidate,
+  type PinyinPlanningCandidate,
   type PinyinSupportPreference,
   type RecentPerformance,
 } from '@hanziquest/learning-engine';
@@ -26,8 +31,8 @@ export const SESSION_PLAN_V2_MATERIALIZER_VERSION =
   'pinyin-session-planner-v1+session-materializer-v2';
 
 export const PINYIN_SESSION_V2_CAPABILITY = Object.freeze({
-  attempts: false,
-  planning: false,
+  attempts: true,
+  planning: true,
 });
 
 const PINYIN_EXERCISE_TYPES = new Set([
@@ -54,14 +59,18 @@ type LessonRow = {
 
 type LessonConceptRow = {
   concept_id: string;
-  concept_type: 'character' | 'sentence' | 'story' | 'word';
+  concept_type: 'character' | 'pinyin' | 'sentence' | 'story' | 'word';
   lesson_id: string;
   role: 'optional' | 'review' | 'target' | 'transfer';
 };
 
+type PublishedPinyinRow = {
+  id: string;
+};
+
 type SkillStateRow = {
   concept_id: string;
-  concept_type: 'character' | 'sentence' | 'story' | 'word';
+  concept_type: 'character' | 'pinyin' | 'sentence' | 'story' | 'word';
   difficulty: string;
   exposure_count: number;
   mastery_probability: string;
@@ -70,7 +79,7 @@ type SkillStateRow = {
 
 type DueReviewRow = {
   concept_id: string;
-  concept_type: 'character' | 'sentence' | 'story' | 'word';
+  concept_type: 'character' | 'pinyin' | 'sentence' | 'story' | 'word';
   skill: string;
 };
 
@@ -106,12 +115,17 @@ type ExerciseDimensions = Readonly<{
 }>;
 
 export type MaterializableCandidate = Readonly<{
-  candidate: HanziPlanningCandidate;
-  dimensions: ExerciseDimensions;
+  candidate: HanziPlanningCandidate | PinyinPlanningCandidate;
+  evidenceTargets: readonly EvidenceTargetV1[];
   exercise: LearningExerciseV2;
   lessonId: string;
-  targetConceptIds: readonly string[];
 }>;
+
+type HanziMaterializableCandidate = MaterializableCandidate &
+  Readonly<{ candidate: HanziPlanningCandidate }>;
+
+type PinyinMaterializableCandidate = MaterializableCandidate &
+  Readonly<{ candidate: PinyinPlanningCandidate }>;
 
 export type AuthoritativePlanningStateV2 = Readonly<{
   abilityEstimate: number;
@@ -124,6 +138,7 @@ export type AuthoritativePlanningStateV2 = Readonly<{
   masteredConceptIds: readonly string[];
   materialsByCandidateId: ReadonlyMap<string, MaterializableCandidate>;
   pinyinSupportPreference: PinyinSupportPreference;
+  pinyinCandidates: readonly PinyinPlanningCandidate[];
   pinyinSupportSignals: Readonly<{
     consecutiveErrors: number;
     consecutiveIndependentSuccesses: number;
@@ -134,9 +149,9 @@ export type AuthoritativePlanningStateV2 = Readonly<{
 }>;
 
 export function confidenceClosingMaterial(
-  materials: readonly MaterializableCandidate[],
+  materials: readonly HanziMaterializableCandidate[],
   abilityEstimate: number,
-): MaterializableCandidate | null {
+): HanziMaterializableCandidate | null {
   return (
     materials
       .map((material) => {
@@ -151,6 +166,47 @@ export function confidenceClosingMaterial(
             curriculumNeed: 0,
             weakness: 0,
           }),
+        });
+        return {
+          candidate,
+          material,
+          predictedSuccess: calculatePredictedSuccess({
+            abilityEstimate,
+            confusionPenalty: candidate.confusionPenalty,
+            difficulty: candidate.difficulty,
+            supportBoost: candidate.supportBoost,
+          }),
+        };
+      })
+      .filter((item) => item.predictedSuccess >= 0.9)
+      .sort(
+        (left, right) =>
+          right.predictedSuccess - left.predictedSuccess ||
+          left.candidate.id.localeCompare(right.candidate.id),
+      )
+      .map(({ candidate, material }) => Object.freeze({ ...material, candidate }))[0] ?? null
+  );
+}
+
+export function confidenceClosingPinyinMaterial(
+  materials: readonly PinyinMaterializableCandidate[],
+  abilityEstimate: number,
+): PinyinMaterializableCandidate | null {
+  return (
+    materials
+      .map((material) => {
+        const candidate = Object.freeze({
+          ...material.candidate,
+          confusion: 0,
+          confusionPenalty: 0,
+          curriculumNeed: 0,
+          difficulty: Math.min(0.1, material.candidate.difficulty),
+          duePriority: 0,
+          id: `${material.candidate.id}:confidence-close`,
+          kind: 'review' as const,
+          recentError: 0,
+          supportBoost: Math.max(0.65, material.candidate.supportBoost),
+          weakness: 0,
         });
         return {
           candidate,
@@ -297,7 +353,7 @@ function rawExercises(contentSpec: unknown): readonly unknown[] {
   return Array.isArray(exercises) ? exercises : [];
 }
 
-function supportedExercises(contentSpec: unknown): readonly LearningExercise[] {
+function supportedHanziExercises(contentSpec: unknown): readonly LearningExercise[] {
   const supported: LearningExercise[] = [];
   for (const candidate of rawExercises(contentSpec)) {
     const type =
@@ -321,6 +377,28 @@ function supportedExercises(contentSpec: unknown): readonly LearningExercise[] {
       throw new SessionPlanV2ServiceError(
         'SESSION_CONTENT_INVALID',
         'A published Hanzi exercise cannot be materialized safely.',
+      );
+    }
+    supported.push(parsed.data);
+  }
+  return supported;
+}
+
+function supportedPinyinExercises(contentSpec: unknown): readonly PinyinLessonExerciseV1[] {
+  const supported: PinyinLessonExerciseV1[] = [];
+  for (const candidate of rawExercises(contentSpec)) {
+    if (
+      !candidate ||
+      typeof candidate !== 'object' ||
+      (candidate as Record<string, unknown>).schemaVersion !== 'pinyin-lesson-exercise-v1'
+    ) {
+      continue;
+    }
+    const parsed = PinyinLessonExerciseV1Schema.safeParse(candidate);
+    if (!parsed.success) {
+      throw new SessionPlanV2ServiceError(
+        'SESSION_CONTENT_INVALID',
+        'A published Pinyin exercise cannot be materialized safely.',
       );
     }
     supported.push(parsed.data);
@@ -428,6 +506,13 @@ export async function loadAuthoritativePlanningStateV2(
            and w.is_published and u.is_published and l.is_published`,
     [authority.curriculum_version_id],
   );
+  const publishedPinyin = await client.query<PublishedPinyinRow>(
+    `select id::text
+       from public.pinyin_concepts
+       where curriculum_version_id = $1
+         and is_published`,
+    [authority.curriculum_version_id],
+  );
   const skillStates = await client.query<SkillStateRow>(
     `select
            concept_type::text, concept_id::text, skill::text,
@@ -492,9 +577,13 @@ export async function loadAuthoritativePlanningStateV2(
 
   const materialsByCandidateId = new Map<string, MaterializableCandidate>();
   const candidates: HanziPlanningCandidate[] = [];
+  const hanziMaterials: HanziMaterializableCandidate[] = [];
+  const pinyinCandidates: PinyinPlanningCandidate[] = [];
+  const pinyinMaterials: PinyinMaterializableCandidate[] = [];
+  const publishedPinyinIds = new Set(publishedPinyin.rows.map((concept) => concept.id));
   for (const lesson of lessons.rows) {
     const lessonTargets = conceptsByLesson.get(lesson.lesson_id) ?? [];
-    for (const sourceExercise of supportedExercises(lesson.content_spec)) {
+    for (const sourceExercise of supportedHanziExercises(lesson.content_spec)) {
       const exerciseDimensions = dimensions(sourceExercise);
       const targetConcepts = sourceExercise.targetConceptIds.map((conceptId) => {
         const declaration = lessonTargets.find(
@@ -573,12 +662,101 @@ export async function loadAuthoritativePlanningStateV2(
       }) satisfies HanziPlanningCandidate;
       const material = Object.freeze({
         candidate,
-        dimensions: exerciseDimensions,
+        evidenceTargets: Object.freeze(
+          targetConcepts.map((target, targetIndex) => ({
+            schemaVersion: 'evidence-target-v1' as const,
+            conceptType: exerciseDimensions.conceptType,
+            conceptId: target.concept_id,
+            skill: exerciseDimensions.skill,
+            abilityAxis: exerciseDimensions.abilityAxis,
+            role:
+              target.role === 'transfer'
+                ? ('transfer' as const)
+                : targetIndex === 0
+                  ? ('primary' as const)
+                  : ('secondary' as const),
+          })),
+        ),
         exercise: materializeExercise(sourceExercise),
         lessonId: lesson.lesson_id,
-        targetConceptIds: Object.freeze([...sourceExercise.targetConceptIds]),
-      });
+      }) satisfies HanziMaterializableCandidate;
       candidates.push(candidate);
+      hanziMaterials.push(material);
+      materialsByCandidateId.set(candidateId, material);
+    }
+
+    for (const source of supportedPinyinExercises(lesson.content_spec)) {
+      const targetConcepts = source.evidenceTargets.map((target) => {
+        const declaration = lessonTargets.find(
+          (candidate) =>
+            candidate.concept_id === target.conceptId &&
+            candidate.concept_type === target.conceptType,
+        );
+        if (
+          !declaration ||
+          (target.conceptType === 'pinyin' && !publishedPinyinIds.has(target.conceptId))
+        ) {
+          throw new SessionPlanV2ServiceError(
+            'SESSION_CONTENT_INVALID',
+            'A published Pinyin exercise target is not an eligible published Lesson concept.',
+          );
+        }
+        return declaration;
+      });
+      const targetStates = source.evidenceTargets.map((target) =>
+        skillByKey.get(stateKey(target.conceptType, target.conceptId, target.skill)),
+      );
+      const isDue = source.evidenceTargets.some((target) =>
+        dueKeys.has(stateKey(target.conceptType, target.conceptId, target.skill)),
+      );
+      if (intent === 'review' && !isDue) continue;
+      const mastery =
+        targetStates.reduce(
+          (total, state) => total + databaseNumber(state?.mastery_probability, 0.15),
+          0,
+        ) / Math.max(1, targetStates.length);
+      const difficulty =
+        targetStates.reduce((total, state) => total + databaseNumber(state?.difficulty, 0.35), 0) /
+        Math.max(1, targetStates.length);
+      const exposures = targetStates.reduce(
+        (total, state) => total + (state?.exposure_count ?? 0),
+        0,
+      );
+      const isTransfer =
+        source.evidenceTargets.some((target) => target.role === 'transfer') ||
+        targetConcepts.some((target) => target.role === 'transfer');
+      const kind =
+        intent === 'review' || isDue || exposures > 0 ? 'review' : isTransfer ? 'transfer' : 'new';
+      const candidateId = `pinyin:${lesson.lesson_id}:${source.exercise.activityId}`;
+      const targetConceptIds = Object.freeze([
+        ...new Set(source.evidenceTargets.map((target) => target.conceptId)),
+      ]);
+      const candidate = Object.freeze({
+        confusion: 0,
+        confusionPenalty: 0,
+        curriculumNeed: targetConcepts.some((target) => target.role === 'target') ? 1 : 0.5,
+        curriculumNodeId: lesson.lesson_id,
+        difficulty,
+        duePriority: isDue ? 1 : 0,
+        estimatedSeconds: source.estimatedSeconds,
+        id: candidateId,
+        interest: targetConcepts.some((target) => target.role === 'optional') ? 0.7 : 0.5,
+        kind,
+        prerequisiteConceptIds: Object.freeze([]),
+        recentError: mastery < 0.5 ? 1 - mastery : 0,
+        skillType: source.pinyinSkillType,
+        supportBoost: 0,
+        targetConceptIds,
+        weakness: 1 - mastery,
+      }) satisfies PinyinPlanningCandidate;
+      const material = Object.freeze({
+        candidate,
+        evidenceTargets: Object.freeze([...source.evidenceTargets]),
+        exercise: source.exercise,
+        lessonId: lesson.lesson_id,
+      }) satisfies PinyinMaterializableCandidate;
+      pinyinCandidates.push(candidate);
+      pinyinMaterials.push(material);
       materialsByCandidateId.set(candidateId, material);
     }
   }
@@ -590,13 +768,15 @@ export async function loadAuthoritativePlanningStateV2(
     masteryValues.length === 0
       ? 0.5
       : masteryValues.reduce((total, value) => total + value, 0) / masteryValues.length;
-  const closingMaterial = confidenceClosingMaterial(
-    [...materialsByCandidateId.values()],
-    abilityEstimate,
-  );
+  const closingMaterial = confidenceClosingMaterial(hanziMaterials, abilityEstimate);
   if (closingMaterial) {
     candidates.push(closingMaterial.candidate);
     materialsByCandidateId.set(closingMaterial.candidate.id, closingMaterial);
+  }
+  const closingPinyinMaterial = confidenceClosingPinyinMaterial(pinyinMaterials, abilityEstimate);
+  if (closingPinyinMaterial) {
+    pinyinCandidates.push(closingPinyinMaterial.candidate);
+    materialsByCandidateId.set(closingPinyinMaterial.candidate.id, closingPinyinMaterial);
   }
 
   const performance = performanceFromAttempts(attemptSignals.rows);
@@ -616,6 +796,7 @@ export async function loadAuthoritativePlanningStateV2(
       ),
     ]),
     materialsByCandidateId,
+    pinyinCandidates: Object.freeze(pinyinCandidates),
     pinyinSupportPreference: authority.pinyin_support_mode,
     pinyinSupportSignals: Object.freeze(performance.pinyinSupportSignals),
     recentPerformance: Object.freeze(performance.recentPerformance),
@@ -629,12 +810,15 @@ export function buildMaterializedSessionPlanV2(
   createdAt: Date,
   createActivityId: () => string = randomUUID,
 ): SessionPlanSnapshotV2 | null {
+  const pinyinClientEnabled =
+    PINYIN_SESSION_V2_CAPABILITY.planning &&
+    request.clientCapabilities?.includes(PINYIN_EXERCISES_CLIENT_CAPABILITY) === true;
   const plan = buildPinyinIntegratedSessionPlan({
     abilityEstimate: state.abilityEstimate,
     eligibleCurriculumNodeIds: state.eligibleCurriculumNodeIds,
     hanziCandidates: state.candidates,
     masteredConceptIds: state.masteredConceptIds,
-    pinyinCandidates: [],
+    pinyinCandidates: pinyinClientEnabled ? state.pinyinCandidates : [],
     pinyinSupportPreference: state.pinyinSupportPreference,
     pinyinSupportSignals: state.pinyinSupportSignals,
     recentPerformance: state.recentPerformance,
@@ -661,14 +845,7 @@ export function buildMaterializedSessionPlanV2(
       contentVersion: state.contentVersion,
       contentSha256: contentSha256(material.exercise),
       exercise: material.exercise,
-      evidenceTargets: material.targetConceptIds.map((conceptId, targetIndex) => ({
-        schemaVersion: 'evidence-target-v1' as const,
-        conceptType: material.dimensions.conceptType,
-        conceptId,
-        skill: material.dimensions.skill,
-        abilityAxis: material.dimensions.abilityAxis,
-        role: targetIndex === 0 ? ('primary' as const) : ('secondary' as const),
-      })),
+      evidenceTargets: material.evidenceTargets,
       pinyinSupport: planned.pinyinSupport
         ? {
             profileMode: state.pinyinSupportPreference,
@@ -819,7 +996,11 @@ export async function createOrReplaySessionPlanV2(
       result,
     };
   }
-  if (request.intent === 'review' && state.candidates.length === 0) {
+  if (
+    request.intent === 'review' &&
+    state.candidates.length === 0 &&
+    state.pinyinCandidates.length === 0
+  ) {
     const result = SessionPlanResultV2Schema.parse({
       schemaVersion: 'session-plan-result-v2',
       result: 'nothing_due',

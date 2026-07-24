@@ -1,7 +1,7 @@
 manifest_version: 1
 baseline:
-  completed_task: '5.9P-A'
-  next_task: '5.9P-B'
+  completed_task: '5.9P-B'
+  next_task: '5.9P-C'
   product_stage: 'closed_alpha'
   ai_runtime: false
   account_model: 'single_user'

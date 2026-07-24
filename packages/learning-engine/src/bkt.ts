@@ -1,4 +1,5 @@
 export const LEARNING_ALGORITHM_VERSION = 'bkt-v1' as const;
+export const PINYIN_SCORING_ALGORITHM_VERSION = 'pinyin-scoring-v1' as const;
 export const masteryBounds = Object.freeze({ maximum: 0.98, minimum: 0.02 });
 
 export type ExerciseBktParameters = Readonly<{
@@ -38,7 +39,75 @@ export const exerciseBktParameters = Object.freeze({
     learnProbability: 0.13,
     slipProbability: 0.12,
   }),
+  audio_to_pinyin: Object.freeze({
+    guessProbability: 0.25,
+    learnProbability: 0.14,
+    slipProbability: 0.1,
+  }),
+  pinyin_to_audio: Object.freeze({
+    guessProbability: 0.25,
+    learnProbability: 0.13,
+    slipProbability: 0.12,
+  }),
+  pinyin_to_glyph: Object.freeze({
+    guessProbability: 0.25,
+    learnProbability: 0.11,
+    slipProbability: 0.14,
+  }),
+  glyph_to_pinyin: Object.freeze({
+    guessProbability: 0.25,
+    learnProbability: 0.12,
+    slipProbability: 0.12,
+  }),
+  tone_choice: Object.freeze({
+    guessProbability: 0.2,
+    learnProbability: 0.14,
+    slipProbability: 0.1,
+  }),
+  pinyin_syllable_build: Object.freeze({
+    guessProbability: 0.1,
+    learnProbability: 0.15,
+    slipProbability: 0.08,
+  }),
 } satisfies Record<string, ExerciseBktParameters>);
+
+export type ScoredExerciseType =
+  | 'audio_to_glyph'
+  | 'glyph_to_image'
+  | 'word_build'
+  | 'sentence_order'
+  | 'audio_to_pinyin'
+  | 'pinyin_to_audio'
+  | 'pinyin_to_glyph'
+  | 'glyph_to_pinyin'
+  | 'tone_choice'
+  | 'pinyin_syllable_build';
+
+export function bktParametersForExerciseType(
+  exerciseType: ScoredExerciseType,
+): ExerciseBktParameters {
+  switch (exerciseType) {
+    case 'audio_to_glyph':
+      return exerciseBktParameters.audio_to_glyph_four_choice;
+    case 'glyph_to_image':
+      return exerciseBktParameters.glyph_to_image;
+    case 'sentence_order':
+    case 'word_build':
+      return exerciseBktParameters.word_build;
+    case 'audio_to_pinyin':
+      return exerciseBktParameters.audio_to_pinyin;
+    case 'pinyin_to_audio':
+      return exerciseBktParameters.pinyin_to_audio;
+    case 'pinyin_to_glyph':
+      return exerciseBktParameters.pinyin_to_glyph;
+    case 'glyph_to_pinyin':
+      return exerciseBktParameters.glyph_to_pinyin;
+    case 'tone_choice':
+      return exerciseBktParameters.tone_choice;
+    case 'pinyin_syllable_build':
+      return exerciseBktParameters.pinyin_syllable_build;
+  }
+}
 
 export type QualityInput = Readonly<{
   baselineResponseTimeMs: number;

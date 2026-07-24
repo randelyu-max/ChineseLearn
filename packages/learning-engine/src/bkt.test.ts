@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  bktParametersForExerciseType,
   calculateBktPosterior,
   calculateExerciseQuality,
   exerciseBktParameters,
@@ -14,6 +15,27 @@ const sample: ExerciseBktParameters = {
   learnProbability: 0.14,
   slipProbability: 0.1,
 };
+
+describe('Pinyin scoring parameters', () => {
+  it('provides explicit bounded parameters for all six server-scored exercise types', () => {
+    for (const exerciseType of [
+      'audio_to_pinyin',
+      'pinyin_to_audio',
+      'pinyin_to_glyph',
+      'glyph_to_pinyin',
+      'tone_choice',
+      'pinyin_syllable_build',
+    ] as const) {
+      const parameters = bktParametersForExerciseType(exerciseType);
+      expect(parameters.guessProbability).toBeGreaterThanOrEqual(0);
+      expect(parameters.guessProbability).toBeLessThan(1);
+      expect(parameters.learnProbability).toBeGreaterThan(0);
+      expect(parameters.learnProbability).toBeLessThanOrEqual(1);
+      expect(parameters.slipProbability).toBeGreaterThanOrEqual(0);
+      expect(parameters.slipProbability).toBeLessThan(1);
+    }
+  });
+});
 
 describe('exercise quality', () => {
   it.each([
@@ -81,7 +103,7 @@ describe('BKT mastery update', () => {
   });
 
   it('contains every documented exercise parameter row', () => {
-    expect(Object.keys(exerciseBktParameters)).toHaveLength(6);
+    expect(Object.keys(exerciseBktParameters)).toHaveLength(12);
     expect(exerciseBktParameters.audio_to_glyph_two_choice).toEqual({
       guessProbability: 0.5,
       learnProbability: 0.16,

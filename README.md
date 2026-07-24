@@ -56,7 +56,11 @@ and the full release audit must be rerun as Task 9.5R.
 Task 5.9P-A moves Pinyin from a demo-only fixture into a versioned PostgreSQL curriculum domain.
 It adds stable initial/final/tone/syllable concepts, licensed audio metadata with byte-verified
 SHA-256 hashes, an idempotent formal import, and explicit canonical/surface Pinyin reading fields.
-Pinyin planning and server scoring remain disabled until Task 5.9P-B.
+Task 5.9P-B adds versioned server scoring, normalized Evidence, BKT/Review replay, formal
+lesson-material validation, and real Pinyin/tone Review Center groups for all six Pinyin exercise
+types. The API emits these activities only when a client declares `pinyin-exercises-v1`; the
+current mobile app deliberately does not declare that capability until Task 5.9P-C adds the
+universal Pinyin Runner.
 
 ## Canonical documents
 

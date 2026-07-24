@@ -92,6 +92,10 @@ const imageOptionCorrect = randomUUID();
 const imageOptionWrong = randomUUID();
 const imageAssetCorrect = randomUUID();
 const imageAssetWrong = randomUUID();
+const pinyinToneConcept = randomUUID();
+const pinyinToneActivity = randomUUID();
+const pinyinToneCorrectOption = randomUUID();
+const pinyinToneWrongOptions = [randomUUID(), randomUUID(), randomUUID(), randomUUID()];
 const cascadeUser = randomUUID();
 const evidenceTargetsJson = JSON.stringify([
   {
@@ -103,6 +107,28 @@ const evidenceTargetsJson = JSON.stringify([
     role: 'primary',
   },
 ]);
+
+async function removePublishedPinyinFixture(): Promise<void> {
+  const cleanupClient = await pool.connect();
+  try {
+    await cleanupClient.query('begin');
+    await cleanupClient.query(
+      'alter table public.pinyin_concepts disable trigger pinyin_concepts_published_immutable',
+    );
+    await cleanupClient.query('delete from public.pinyin_concepts where id = $1', [
+      pinyinToneConcept,
+    ]);
+    await cleanupClient.query(
+      'alter table public.pinyin_concepts enable trigger pinyin_concepts_published_immutable',
+    );
+    await cleanupClient.query('commit');
+  } catch (error) {
+    await cleanupClient.query('rollback').catch(() => undefined);
+    throw error;
+  } finally {
+    cleanupClient.release();
+  }
+}
 
 try {
   await client.query('begin');
@@ -197,6 +223,68 @@ try {
             activityId: 'pinyin.gated.fixture',
             type: 'tone_choice',
           },
+          {
+            schemaVersion: 'pinyin-lesson-exercise-v1',
+            minimumClientCapability: 'pinyin-exercises-v1',
+            exercise: {
+              schemaVersion: 'learning-exercise-v2',
+              activityId: pinyinToneActivity,
+              instructionZh: '\u8bf7\u9009\u51fa\u6b63\u786e\u7684\u58f0\u8c03\u3002',
+              instructionAccessibilityLabel:
+                '\u8bf7\u542c\u97f3\u9891\u5e76\u9009\u62e9\u6b63\u786e\u58f0\u8c03\u3002',
+              type: 'tone_choice',
+              promptAudioAssetKey: null,
+              baseSyllable: 'ma',
+              targetSyllable: 'ma5',
+              contextZh: '\u4f60\u597d\u5417\uff1f',
+              options: [
+                {
+                  optionId: pinyinToneWrongOptions[0],
+                  tone: 1,
+                  display: 'm\u0101',
+                  accessibilityLabel: 'm\u0101\uff0c\u7b2c\u4e00\u58f0',
+                },
+                {
+                  optionId: pinyinToneWrongOptions[1],
+                  tone: 2,
+                  display: 'm\u00e1',
+                  accessibilityLabel: 'm\u00e1\uff0c\u7b2c\u4e8c\u58f0',
+                },
+                {
+                  optionId: pinyinToneWrongOptions[2],
+                  tone: 3,
+                  display: 'm\u01ce',
+                  accessibilityLabel: 'm\u01ce\uff0c\u7b2c\u4e09\u58f0',
+                },
+                {
+                  optionId: pinyinToneWrongOptions[3],
+                  tone: 4,
+                  display: 'm\u00e0',
+                  accessibilityLabel: 'm\u00e0\uff0c\u7b2c\u56db\u58f0',
+                },
+                {
+                  optionId: pinyinToneCorrectOption,
+                  tone: 5,
+                  display: 'ma',
+                  accessibilityLabel: 'ma\uff0c\u8f7b\u58f0',
+                },
+              ],
+              correctOptionId: pinyinToneCorrectOption,
+            },
+            evidenceTargets: [
+              {
+                schemaVersion: 'evidence-target-v1',
+                conceptType: 'pinyin',
+                conceptId: pinyinToneConcept,
+                skill: 'tone_choice',
+                abilityAxis: 'tone_discrimination',
+                role: 'primary',
+              },
+            ],
+            pinyinSkillType: 'tone',
+            pinyinSupportApplicable: false,
+            estimatedSeconds: 45,
+          },
         ],
       },
     ],
@@ -221,14 +309,31 @@ try {
     ],
   );
   await client.query(
+    `insert into public.pinyin_concepts (
+       id, curriculum_version_id, concept_code, kind, canonical_value, display_value,
+       tone_number, content_status, is_published
+     ) values ($1, $2, 'pinyin.tone.neutral', 'tone', '5', '\u8f7b\u58f0',
+       5, 'published', true)`,
+    [pinyinToneConcept, curriculumVersion],
+  );
+  await client.query(
     `insert into public.lesson_concepts (
        lesson_id, concept_type, concept_id, role, sort_order
      ) values
        ($1, 'character', $2, 'target', 0),
        ($1, 'character', $3, 'review', 1),
        ($1, 'character', $4, 'optional', 2),
-       ($5, 'character', $6, 'target', 0)`,
-    [lesson, conceptB, confusionConcept, unpublishedConcept, lessonTwo, safeConcept],
+       ($5, 'character', $6, 'target', 0),
+       ($5, 'pinyin', $7, 'target', 1)`,
+    [
+      lesson,
+      conceptB,
+      confusionConcept,
+      unpublishedConcept,
+      lessonTwo,
+      safeConcept,
+      pinyinToneConcept,
+    ],
   );
   await client.query(
     `insert into public.confusable_pairs (
@@ -1266,6 +1371,13 @@ try {
     planningProbeV2.candidates.length >= 3,
     `V2 planning expected materializable Hanzi candidates, received ${planningProbeV2.candidates.length}`,
   );
+  assert.equal(
+    planningProbeV2.pinyinCandidates.filter((candidate) =>
+      candidate.id.endsWith(':confidence-close'),
+    ).length,
+    1,
+    'The authoritative planner must load formal Pinyin and preserve its closing invariant.',
+  );
   const materializedProbeV2 = buildMaterializedSessionPlanV2(
     learnRequestsV2[0]!,
     planningProbeV2,
@@ -1283,6 +1395,37 @@ try {
         supportBoost: candidate.supportBoost,
       })),
     )})`,
+  );
+  const pinyinCapableProbeV2 = buildMaterializedSessionPlanV2(
+    {
+      ...learnRequestsV2[0]!,
+      clientCapabilities: ['pinyin-exercises-v1'],
+    },
+    {
+      ...planningProbeV2,
+      pinyinSupportSignals: {
+        consecutiveErrors: 0,
+        consecutiveIndependentSuccesses: 3,
+        fullAnswerRevealRate: 0,
+        recentIndependentAccuracy: 0.9,
+      },
+    },
+    randomUUID(),
+    new Date(),
+  );
+  assert.equal(
+    pinyinCapableProbeV2?.activities.some(
+      (plannedActivity) => plannedActivity.exerciseType === 'tone_choice',
+    ),
+    true,
+    'A Pinyin-capable client must receive the server-planned formal tone Activity.',
+  );
+  assert.equal(
+    pinyinCapableProbeV2?.activities.find(
+      (plannedActivity) => plannedActivity.exerciseType === 'tone_choice',
+    )?.pinyinSupport,
+    null,
+    'Pinyin target evidence must not be downweighted by a Hanzi Pinyin-support decision.',
   );
   const concurrentPlansV2 = await Promise.all(
     learnRequestsV2.map(async (request) => ({
@@ -1314,7 +1457,7 @@ try {
   assert.equal(
     learnSnapshotV2.activities.some((item) => item.exerciseType.includes('pinyin')),
     false,
-    'The capability gate must exclude Pinyin activities before Attempts V2 support exists',
+    'The capability gate must keep a client without Pinyin Runner support on known Activities',
   );
   assert.equal(
     learnSnapshotV2.activities.every(
@@ -1666,6 +1809,133 @@ try {
     `insert into public.review_schedule (
        user_id, concept_type, concept_id, skill, due_at, due_reason,
        interval_days, planner_version
+     ) values (
+       $1, 'pinyin', $2, 'tone_choice', '2020-01-01T00:00:00.000Z',
+       'initial_pinyin_review', 1, 'pinyin-scoring-v1'
+     )`,
+    [userA, pinyinToneConcept],
+  );
+  const pinyinReviewClientSessionId = randomUUID();
+  const pinyinReviewPlan = await withUserTransaction(pool, userA, (transaction) =>
+    createOrReplaySessionPlanV2(
+      transaction,
+      userA,
+      SessionPlanRequestV2Schema.parse({
+        schemaVersion: 'session-plan-request-v2',
+        clientSessionId: pinyinReviewClientSessionId,
+        idempotencyKey: `session-plan-v2:${pinyinReviewClientSessionId}`,
+        intent: 'review',
+        targetMinutes: 10,
+        clientCapabilities: ['pinyin-exercises-v1'],
+      }),
+    ),
+  );
+  assert.equal(pinyinReviewPlan.result.result, 'planned');
+  const pinyinReviewSession =
+    pinyinReviewPlan.result.result === 'planned' ? pinyinReviewPlan.result.session : null;
+  assert.ok(pinyinReviewSession);
+  const plannedToneActivity = pinyinReviewSession.snapshot.activities.find(
+    (plannedActivity) => plannedActivity.exerciseType === 'tone_choice',
+  );
+  assert.ok(plannedToneActivity, 'A due tone target must materialize for a capable client.');
+  assert.equal(plannedToneActivity.pinyinSupport, null);
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, pinyinReviewSession.sessionId, 'start', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `start-pinyin-review:${pinyinReviewSession.sessionId}`,
+    }),
+  );
+  const pinyinAttemptId = randomUUID();
+  const pinyinAttemptRequest = AttemptsBatchRequestV2Schema.parse({
+    schemaVersion: 'attempts-batch-request-v2',
+    sessionId: pinyinReviewSession.sessionId,
+    idempotencyKey: `attempts-v2:${randomUUID()}`,
+    attempts: [
+      {
+        attemptId: pinyinAttemptId,
+        sessionActivityId: plannedToneActivity.sessionActivityId,
+        answer: { optionId: pinyinToneCorrectOption },
+        isCorrectClient: false,
+        responseMs: 1_200,
+        hintLevel: 'none',
+        pinyinSupport: 'none',
+        replayCount: 0,
+        retryCount: 0,
+        occurredAt: '2026-07-24T12:10:00.000Z',
+        offlineSequence: 200,
+      },
+    ],
+  });
+  const acceptedPinyinAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(transaction, userA, pinyinAttemptRequest),
+  );
+  assert.equal(acceptedPinyinAttempt?.results[0]?.status, 'accepted');
+  assert.equal(
+    acceptedPinyinAttempt?.results[0]?.status === 'accepted'
+      ? acceptedPinyinAttempt.results[0].isCorrect
+      : false,
+    true,
+    'The server must score the immutable neutral-tone answer as correct.',
+  );
+  assert.deepEqual(
+    await withUserTransaction(pool, userA, (transaction) =>
+      processAttemptsBatchV2(transaction, userA, pinyinAttemptRequest),
+    ),
+    acceptedPinyinAttempt,
+    'A repeated offline Pinyin batch must replay the exact response.',
+  );
+  const duplicatePinyinAttempt = await withUserTransaction(pool, userA, (transaction) =>
+    processAttemptsBatchV2(transaction, userA, {
+      ...pinyinAttemptRequest,
+      idempotencyKey: `attempts-v2:${randomUUID()}`,
+    }),
+  );
+  assert.equal(duplicatePinyinAttempt?.results[0]?.status, 'duplicate');
+  const persistedPinyinLearning = await pool.query<{
+    algorithm_version: string;
+    exposure_count: number;
+    mastery_probability: string;
+    review_count: string;
+  }>(
+    `select
+       ae.algorithm_version,
+       ss.exposure_count,
+       ss.mastery_probability::text,
+       (select count(*)::text
+        from public.review_schedule rs
+        where rs.user_id = $1
+          and rs.concept_type = 'pinyin'
+          and rs.concept_id = $2
+          and rs.skill = 'tone_choice') as review_count
+     from public.attempt_evidence ae
+     join public.attempts a on a.id = ae.attempt_id and a.user_id = ae.user_id
+     join public.skill_states ss
+       on ss.user_id = ae.user_id
+      and ss.concept_type::text = ae.concept_type
+      and ss.concept_id::text = ae.concept_id
+      and ss.skill::text = ae.skill
+     where a.offline_event_id = $3`,
+    [userA, pinyinToneConcept, pinyinAttemptId],
+  );
+  assert.equal(persistedPinyinLearning.rows[0]?.exposure_count, 1);
+  assert.ok(Number(persistedPinyinLearning.rows[0]?.mastery_probability) > 0.15);
+  assert.equal(persistedPinyinLearning.rows[0]?.review_count, '1');
+  assert.equal(
+    persistedPinyinLearning.rows[0]?.algorithm_version.includes('pinyin-scoring-v1'),
+    true,
+  );
+  await withUserTransaction(pool, userA, (transaction) =>
+    transitionSession(transaction, userA, pinyinReviewSession.sessionId, 'abandon', {
+      schemaVersion: 'session-lifecycle-request-v1',
+      idempotencyKey: `cleanup-pinyin-review:${pinyinReviewSession.sessionId}`,
+      reasonCode: 'test_cleanup',
+    }),
+  );
+
+  await pool.query(
+    `insert into public.review_schedule (
+       user_id, concept_type, concept_id, skill, due_at, due_reason,
+       interval_days, planner_version
      ) values
        ($1, 'character', $2, 'audio_to_glyph', '2020-01-01T00:00:00.000Z',
         'v2-review-test', 1, 'test-v2'),
@@ -1919,6 +2189,15 @@ try {
   );
   await pool.query(`delete from public.lessons where id = $1`, [invalidLesson]);
 
+  await pool.query(
+    `update public.review_schedule
+     set due_at = '2026-07-25T00:00:00.000Z'
+     where user_id = $1
+       and concept_type = 'pinyin'
+       and concept_id = $2
+       and skill = 'tone_choice'`,
+    [userA, pinyinToneConcept],
+  );
   const reviewGeneratedAt = new Date('2030-01-01T00:00:00.000Z');
   const reviewPagination = resolveReviewCenterPagination(
     { schemaVersion: 'review-center-request-v1', limit: 50 },
@@ -1943,9 +2222,17 @@ try {
   const reviewA = await withUserTransaction(pool, userA, (transaction) =>
     loadReviewCenter(transaction, userA, reviewPagination),
   );
-  assert.equal(reviewA.summary.dueNowCount, 1, 'Confusion work must replace duplicate Hanzi work');
+  assert.equal(
+    reviewA.summary.dueNowCount,
+    2,
+    'Confusion work must replace duplicate Hanzi work while preserving due Pinyin work',
+  );
   assert.equal(reviewA.items[0]?.kind, 'confusion');
   assert.equal(reviewA.items[0]?.reasonCode, 'confusion_pair');
+  const toneReview = reviewA.items.find((item) => item.kind === 'tone');
+  assert.equal(toneReview?.contentRef, `pinyin:${pinyinToneConcept}`);
+  assert.equal(toneReview?.recommendedActivityType, 'tone_choice');
+  assert.equal(toneReview?.reasonCode, 'stability_check');
   assert.equal(
     reviewA.items.some((item) => item.contentRef.includes(unpublishedConcept)),
     false,
@@ -1955,6 +2242,11 @@ try {
     reviewA.groups.map((group) => group.kind),
     ['hanzi', 'pinyin', 'tone', 'word', 'sentence', 'confusion'],
     'Review Center must always return all six stable groups',
+  );
+  assert.equal(
+    reviewA.groups.find((group) => group.kind === 'tone')?.count,
+    1,
+    'A real Pinyin tone schedule must populate the tone group.',
   );
   const reviewPayload = JSON.stringify(reviewA);
   assert.equal(reviewPayload.includes(userA), false, 'Review response must not expose user IDs');
@@ -1990,6 +2282,7 @@ try {
   );
 
   await pool.query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]]);
+  await removePublishedPinyinFixture();
   await pool.query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion]);
   await pool.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
   await pool.query(`delete from public.characters where id = any($1::uuid[])`, [
@@ -2003,6 +2296,7 @@ try {
   await pool
     .query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]])
     .catch(() => undefined);
+  await removePublishedPinyinFixture().catch(() => undefined);
   await pool
     .query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion])
     .catch(() => undefined);

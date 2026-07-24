@@ -796,6 +796,24 @@ atomically publishing a complete Curriculum release, so this importer cannot dis
 active course by itself.
 
 Word and sentence reading contracts now distinguish `canonicalPinyin` from optional
-`surfacePinyin`; V1 does not guess complex tone sandhi. Session V2 Pinyin planning and Attempts
-capabilities remain `false`, so this checkpoint does not implement Task 5.9P-B scoring/Evidence or
-Task 5.9P-C mobile Runner behavior.
+`surfacePinyin`; V1 does not guess complex tone sandhi.
+
+### Implementation checkpoint: 5.9P-B
+
+As of 2026-07-24, server planning and Attempts V2 support all six formal Pinyin exercise types.
+Published lesson sources use `pinyin-lesson-exercise-v1`, which binds an immutable
+`learning-exercise-v2` payload to explicit primary/secondary/transfer Evidence targets, a Pinyin
+skill type, and the minimum `pinyin-exercises-v1` client capability. The API validates every target
+against the published Curriculum and Lesson declarations before materialization.
+
+`pinyin-scoring-v1` supplies explicit BKT parameters. Pinyin and tone axes retain full support
+weight; Hanzi-dependent Evidence uses the existing none/visible/revealed/full-answer table, and
+`pinyin_to_glyph` always treats its Hanzi target as Pinyin-supported rather than independent
+recognition. Context-bound accepted readings handle polyphonic glyphs, and tone 5 is the explicit
+neutral-tone value. Normalized Evidence drives the same deterministic Skill State and Review
+replay path as Hanzi. Review Center resolves published Pinyin concepts into stable `pinyin` and
+`tone` groups.
+
+The server capability is open, but old clients remain safe: Session Plan V2 includes Pinyin
+candidates only when the request declares `pinyin-exercises-v1`. The current mobile client does not
+declare it. Task 5.9P-C owns mobile Runner rendering and capability opt-in.
