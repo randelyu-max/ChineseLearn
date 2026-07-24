@@ -12,6 +12,7 @@ import {
   loadAuthoritativePlanningState,
 } from '../session-plan-service.js';
 import { processAttemptsBatch } from '../attempts-batch-service.js';
+import { loadReviewCenter, resolveReviewCenterPagination } from '../review-center-service.js';
 import { recordSignaturePractice, upsertSignatureProject } from '../signature-practice-service.js';
 import { withUserTransaction } from './pool.js';
 
@@ -21,6 +22,7 @@ if (!databaseUrl) throw new Error('DATABASE_URL is required.');
 async function count(client: PoolClient, table: string): Promise<number> {
   const allowed = new Set([
     'attempts',
+    'confusion_stats',
     'learning_sessions',
     'profiles',
     'review_schedule',
@@ -46,6 +48,9 @@ const clientSessionB = randomUUID();
 const clientSessionA = randomUUID();
 const attemptB = randomUUID();
 const conceptB = randomUUID();
+const confusionConcept = randomUUID();
+const unpublishedConcept = randomUUID();
+const confusionPair = randomUUID();
 const signatureB = randomUUID();
 const signatureEventB = randomUUID();
 const signatureA = randomUUID();
@@ -120,10 +125,44 @@ try {
     ],
   );
   await client.query(
+    `insert into public.characters (
+       id, concept_code, simplified_glyph, traditional_glyph, pinyin_syllables, is_published
+     ) values
+       ($1, $2, '家', '家', array['jiā'], true),
+       ($3, $4, '冢', '塚', array['zhǒng'], true),
+       ($5, $6, '隐', '隱', array['yǐn'], false)`,
+    [
+      conceptB,
+      `review-${conceptB}`,
+      confusionConcept,
+      `review-${confusionConcept}`,
+      unpublishedConcept,
+      `review-${unpublishedConcept}`,
+    ],
+  );
+  await client.query(
     `insert into public.lesson_concepts (
        lesson_id, concept_type, concept_id, role, sort_order
-     ) values ($1, 'character', $2, 'target', 0)`,
-    [lesson, conceptB],
+     ) values
+       ($1, 'character', $2, 'target', 0),
+       ($1, 'character', $3, 'review', 1),
+       ($1, 'character', $4, 'optional', 2)`,
+    [lesson, conceptB, confusionConcept, unpublishedConcept],
+  );
+  await client.query(
+    `insert into public.confusable_pairs (
+       id, left_character_id, right_character_id, reason_code, is_published
+     ) values ($1, $2, $3, 'similar_shape', true)`,
+    [confusionPair, conceptB, confusionConcept],
+  );
+  await client.query(
+    `insert into public.confusion_stats (
+       user_id, pair_id, left_shown_count, right_shown_count,
+       left_as_right_count, right_as_left_count, risk, next_practice_at
+     ) values
+       ($1, $3, 4, 4, 2, 1, 0.75, '2020-01-01T00:00:00.000Z'),
+       ($2, $3, 4, 4, 1, 1, 0.50, '2099-01-01T00:00:00.000Z')`,
+    [userA, userB, confusionPair],
   );
   await client.query(
     `insert into public.learning_sessions (
@@ -151,6 +190,16 @@ try {
        interval_days, planner_version
      ) values ($1, 'character', $2, 'audio_to_glyph', now(), 'test', 1, 'test-v1')`,
     [userB, conceptB],
+  );
+  await client.query(
+    `insert into public.review_schedule (
+       user_id, concept_type, concept_id, skill, due_at, due_reason,
+       interval_days, planner_version
+     ) values (
+       $1, 'character', $2, 'audio_to_glyph',
+       '2020-01-01T00:00:00.000Z', 'test-unpublished', 1, 'test-v1'
+     )`,
+    [userA, unpublishedConcept],
   );
   await client.query(
     `insert into public.signature_projects (id, user_id, chinese_name)
@@ -439,7 +488,11 @@ try {
   assert.equal(duplicateBatch?.results[0]?.status, 'duplicate');
   assert.equal(await count(client, 'attempts'), 1, 'Duplicate event must be stored once');
   assert.equal(await count(client, 'skill_states'), 1, 'Duplicate event must update skill once');
-  assert.equal(await count(client, 'review_schedule'), 1, 'Duplicate event must schedule once');
+  assert.equal(
+    await count(client, 'review_schedule'),
+    2,
+    'Duplicate event must schedule once alongside the unpublished-content fixture',
+  );
   const firstAttempt = attemptsRequest.attempts[0]!;
   assert.equal(
     await processAttemptsBatch(client, userA, {
@@ -546,12 +599,17 @@ try {
     'User A must read only their own immutable metadata events',
   );
   assert.equal(await count(client, 'reward_balances'), 0, 'User A must not read User B rewards');
-  for (const table of ['attempts', 'skill_states', 'review_schedule']) {
+  for (const table of ['attempts', 'confusion_stats', 'skill_states', 'review_schedule']) {
     const rows = await client.query(`select user_id from public.${table} where user_id = $1`, [
       userB,
     ]);
     assert.equal(rows.rowCount, 0, `User A must not read User B ${table}`);
   }
+  assert.equal(
+    await count(client, 'confusion_stats'),
+    1,
+    'User A must read only their own confusion statistics',
+  );
   const userBSessionRows = await client.query(
     `select id from public.learning_sessions where user_id = $1`,
     [userB],
@@ -592,6 +650,11 @@ try {
     await count(client, 'signature_practice_events'),
     0,
     'Unauthenticated access must return no signature metadata events',
+  );
+  assert.equal(
+    await count(client, 'confusion_stats'),
+    0,
+    'Unauthenticated access must return no confusion statistics',
   );
 
   await client.query('commit');
@@ -637,10 +700,84 @@ try {
     'Concurrent duplicate must change skill state at most once',
   );
 
+  const reviewGeneratedAt = new Date('2030-01-01T00:00:00.000Z');
+  const reviewPagination = resolveReviewCenterPagination(
+    { schemaVersion: 'review-center-request-v1', limit: 50 },
+    reviewGeneratedAt,
+  );
+  const privateTableCounts = async () =>
+    pool
+      .query<{
+        attempts: string;
+        confusion_stats: string;
+        review_schedule: string;
+        skill_states: string;
+      }>(
+        `select
+           (select count(*) from public.attempts)::text as attempts,
+           (select count(*) from public.confusion_stats)::text as confusion_stats,
+           (select count(*) from public.review_schedule)::text as review_schedule,
+           (select count(*) from public.skill_states)::text as skill_states`,
+      )
+      .then((result) => result.rows[0]);
+  const countsBeforeReviewRead = await privateTableCounts();
+  const reviewA = await withUserTransaction(pool, userA, (transaction) =>
+    loadReviewCenter(transaction, userA, reviewPagination),
+  );
+  assert.equal(reviewA.summary.dueNowCount, 1, 'Confusion work must replace duplicate Hanzi work');
+  assert.equal(reviewA.items[0]?.kind, 'confusion');
+  assert.equal(reviewA.items[0]?.reasonCode, 'confusion_pair');
+  assert.equal(
+    reviewA.items.some((item) => item.contentRef.includes(unpublishedConcept)),
+    false,
+    'Unpublished content must never enter Review Center',
+  );
+  assert.deepEqual(
+    reviewA.groups.map((group) => group.kind),
+    ['hanzi', 'pinyin', 'tone', 'word', 'sentence', 'confusion'],
+    'Review Center must always return all six stable groups',
+  );
+  const reviewPayload = JSON.stringify(reviewA);
+  assert.equal(reviewPayload.includes(userA), false, 'Review response must not expose user IDs');
+  assert.equal(
+    reviewPayload.includes('"correct"'),
+    false,
+    'Review response must not expose answers',
+  );
+  assert.equal(reviewPayload.includes('mastery'), false, 'Review response must not expose mastery');
+
+  const reviewB = await withUserTransaction(pool, userB, (transaction) =>
+    loadReviewCenter(transaction, userB, reviewPagination),
+  );
+  assert.equal(reviewB.summary.dueNowCount, 1, 'User B must see only their own due schedule');
+  assert.equal(reviewB.items[0]?.kind, 'hanzi');
+  assert.equal(
+    reviewB.items.some((item) => item.kind === 'confusion'),
+    false,
+    'User B future confusion work must not leak into due work',
+  );
+  const forgedReviewRead = await withUserTransaction(pool, userA, (transaction) =>
+    loadReviewCenter(transaction, userB, reviewPagination),
+  );
+  assert.equal(
+    forgedReviewRead.summary.dueNowCount,
+    0,
+    'RLS must deny a mismatched internal user ID even before the response is built',
+  );
+  assert.deepEqual(
+    await privateTableCounts(),
+    countsBeforeReviewRead,
+    'Review Center reads must not mutate attempts, skill state, schedules, or confusion stats',
+  );
+
   await pool.query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]]);
   await pool.query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion]);
+  await pool.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
+  await pool.query(`delete from public.characters where id = any($1::uuid[])`, [
+    [conceptB, confusionConcept, unpublishedConcept],
+  ]);
   console.log(
-    'PostgreSQL integration passed: planning, authoritative attempts, concurrency, idempotency, immutability, cascade deletion, and cross-user denial verified.',
+    'PostgreSQL integration passed: planning, authoritative attempts, concurrency, idempotency, immutability, read-only Review Center filtering, cascade deletion, and cross-user denial verified.',
   );
 } catch (error) {
   if (!clientReleased) await client.query('rollback').catch(() => undefined);
@@ -649,6 +786,14 @@ try {
     .catch(() => undefined);
   await pool
     .query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion])
+    .catch(() => undefined);
+  await pool
+    .query(`delete from public.confusable_pairs where id = $1`, [confusionPair])
+    .catch(() => undefined);
+  await pool
+    .query(`delete from public.characters where id = any($1::uuid[])`, [
+      [conceptB, confusionConcept, unpublishedConcept],
+    ])
     .catch(() => undefined);
   throw error;
 } finally {

@@ -292,6 +292,7 @@ export default function DemoCourseScreen() {
             {homeDemoStory.question.options.map((option, index) => (
               <Pressable
                 accessibilityLabel={option.simplified}
+                aria-checked={course.storyAnswerIndex === index}
                 accessibilityRole="radio"
                 accessibilityState={{
                   checked: course.storyAnswerIndex === index,

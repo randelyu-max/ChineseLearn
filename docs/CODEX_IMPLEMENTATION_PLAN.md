@@ -1,6 +1,7 @@
 # HanziQuest V1 Codex implementation plan
 
-Status: Task 7.3H published human-editorial humor content implemented; 8.0 is next.
+Status: Task 8.2A restores the omitted Review Center read model/API. Task 8.2B remains pending,
+and the candidate must not be promoted until Task 9.5R reruns the complete release audit.
 Execute one task at a time; stop after its acceptance checks and review.
 
 ## Superseded work
@@ -17,7 +18,7 @@ database still uses `child_id`.
 ## Required order
 
 P0 (complete) → P1 (complete) → 2.2R (complete) → 2.3R (complete) → 2.4R (complete) → 3.5R (complete) → 3.6R (complete) →
-5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R (complete) → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.0.
+5.1P (complete) → 3.7R (complete) → 4.1R (complete) → 4.2R (complete) → 4.3R (complete) → 5.2P–5.8P → 6.1W–6.4W → 7.1H–7.3H → 8.2A → 8.2B → 9.5R.
 
 ## Task cards
 
@@ -219,7 +220,7 @@ answers.
 | 7.2H (complete) | Profile humor preference                          | No personalization profiling | 7.1H, 2.4R | profile/mobile       | Existing `humor_preference` | Implemented 2026-07-23: existing `light` default and strict update endpoint retained; age-neutral mobile control added; pure bundled selector is deterministic offline, fails closed when unavailable, and maps `off` to neutral unconditionally | Default to off/remove control |
 | 7.3H (complete) | Human-authored reviewed humor content             | No runtime rewrite or generation | 7.2H       | curriculum/assets    | `humor-content-v1` version `1.0.0` | Implemented 2026-07-23: six published bundled items approved by 于永, stable IDs, simplified/traditional targets and answers, exact neutral fallbacks, release validation in local command and CI | Unpublish humor variants      |
 
-### 8.0 — Full V1 regression and release preparation
+### 8.0 — Historical incomplete release audit
 
 - **目标：** Validate complete single-user V1 for release.
 - **非目标：** No new features, AI, payment, or speculative architecture.
@@ -230,4 +231,54 @@ answers.
 - **测试要求：** Full unit/integration/E2E, offline stress, performance, accessibility, privacy,
   content, migration/rollback, supported devices.
 - **验收标准：** No Parent/Child/Household/AI runtime surface; all release gates documented green.
+
+Audit note (2026-07-23): dependency, format, lint, type, 382-test, content, migration, RLS,
+backup/restore, Web build, Android/iOS JavaScript export, browser, privacy, secret, and forbidden
+runtime checks were run. The Review tab still displays a later-task placeholder and has no
+authenticated read API, so the release decision remained red. This historical audit does not own
+Review Center implementation. See `docs/release/V1_RELEASE_CHECKLIST.md`; Task 9.5R supersedes this
+incomplete audit after 8.2A and 8.2B are accepted.
 - **回滚方式：** Do not promote candidate; restore previous deployment/database snapshot.
+
+### 8.2A — Review Center read model and API
+
+- **状态：** Complete on 2026-07-24; stop before 8.2B.
+- **目标：** Return a bounded, versioned, read-only due-review summary for the authenticated user.
+- **非目标：** No mobile screen, review-session creation, mastery calculation, schedule mutation,
+  AI, or new learning algorithm.
+- **依赖：** 3.1–3.7, 4.1R–4.4R, 7.3H.
+- **文件范围：** Shared contracts, Hono API route/read service, PostgreSQL/RLS integration tests,
+  and canonical documentation.
+- **数据变化：** None. Reuse `review_schedule`, `skill_states`, `confusion_stats`, `attempts`, and
+  published curriculum. The existing `(user_id, due_at)` index is sufficient.
+- **安全和隐私：** Session-derived identity, forced RLS, no client `user_id`, answers, internal
+  weights, mastery values, unpublished content, or cross-user data in the response.
+- **测试要求：** Contract/service/route tests, live PostgreSQL cross-user and read-only checks,
+  Task 3.x/4.x regression, forbidden-domain checks, and `git diff --check`.
+- **验收标准：** `GET /api/review-center` returns `review-center-v1`, stable grouping and cursor
+  pagination without writing learning state.
+- **实际验证：** Contract/API suites, 396-test full regression, 8-package build, static migration
+  validation, and isolated PostgreSQL 17 migration/RLS/read-only integration passed. The existing
+  `(user_id, due_at)` index was verified; no migration was added.
+- **回滚方式：** Remove the route/service/contract and documentation additions; no database
+  rollback is required.
+
+### 8.2B — Mobile Review Center
+
+- **状态：** Pending explicit approval after 8.2A completion.
+- **目标：** Replace the Review tab placeholder with accessible summary, groups, states, paging,
+  retry, and session-planner-backed “start review” behavior.
+- **开始检查点：** The current `session-plan-request-v1` has no review intent. Before UI work,
+  review and explicitly version the smallest compatible `intent: "review"` extension; do not build
+  a second planner.
+- **非目标：** No client-side mastery/schedule mutation and no duplicated 3.x planning logic.
+- **回滚方式：** Restore the placeholder route while retaining the read-only API.
+
+### 9.5R — Complete V1 release audit rerun
+
+- **状态：** Pending 8.2A and 8.2B.
+- **目标：** Rerun the complete V1 candidate audit and replace historical 8.0 evidence with current
+  results.
+- **非目标：** No feature implementation inside the audit.
+- **验收标准：** Every executed gate records its real result; unresolved native/store/operator
+  requirements remain explicit blockers rather than inferred passes.

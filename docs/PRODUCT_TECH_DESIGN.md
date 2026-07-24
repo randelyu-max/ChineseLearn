@@ -1,6 +1,6 @@
 # HanziQuest V1 产品与技术设计基线
 
-状态：Task 7.3H 人工编辑静态幽默内容发布后的决策基线
+状态：Task 8.2A 只读复习中心 API 已完成；8.2B 移动端和 9.5R 发布审计复跑待执行
 
 目标用户：会说或听得懂一些中文、但不熟悉汉字阅读和书写的 13 岁以上海外华裔青少年及成人
 
@@ -99,6 +99,27 @@ Node API；API 从会话取得用户 ID，并在事务内设置 `app.current_use
 同一快照，即使重试请求中的目标时长变化也不会重新规划。应用角色只有新增和读取权限，
 数据库触发器禁止修改用户、客户端键、课程、时长、算法版本和计划快照。没有 profile 或
 已发布课程时返回版本化的内容不可用错误，不会创建半成品 session。
+
+### 3.4 只读复习中心 API
+
+`GET /api/review-center` 只接受 `review-center-request-v1` 的 `schemaVersion`、可选 cursor 和
+1–50 的 page limit；不接受 `user_id`。API 从 Better Auth session 取得用户身份，并在
+`hanziquest_app` 事务与强制 RLS 下读取 `review_schedule`、`skill_states`、
+`confusion_stats`、近期 attempts 摘要和当前已发布课程。
+
+响应使用 `review-center-v1`，包含固定的 `hanzi | pinyin | tone | word | sentence |
+confusion` 分组、到期/逾期汇总、确定性预计分钟数、下一到期时间、有限条目和
+`review-center-cursor-v1` 分页。`due_at <= generatedAt` 属于当前到期；逾期、较早
+`due_at` 和稳定 `reviewKey` 依次决定排序。数据库目前没有独立 review priority 字段，
+因此 API 不创造第二套优先级。混淆 pair 优先替代涉及同一汉字的普通条目；同一概念不会
+因多个来源重复计数。
+
+读取不会创建 session、更新 due time、标记已查看、重算 mastery 或写入任何学习状态。
+响应不包含用户 ID、正确答案、完整 attempt、mastery/内部权重或未发布内容。现有数据库
+skill enum 只可把 `glyph_to_sound` 映射为拼音依赖复习，尚无独立声调/拼音复习持久化；
+因此真实查询中的 `tone` 分组在 V1 当前数据模型下可能为空。移动端 Task 8.2B 开始前还
+必须显式评审 `session-plan-request-v1` 的最小 review intent 版本扩展；8.2A 不建立第二套
+规划器。
 
 ## 4. 认证与会话
 

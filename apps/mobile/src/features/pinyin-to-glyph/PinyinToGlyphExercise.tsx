@@ -58,6 +58,7 @@ export function PinyinToGlyphExercise({ exercise, onRetry, onSelectOption, state
           return (
             <Pressable
               accessibilityLabel={option.accessibilityLabel}
+              aria-checked={selected}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected, disabled: optionsDisabled }}
               disabled={optionsDisabled}

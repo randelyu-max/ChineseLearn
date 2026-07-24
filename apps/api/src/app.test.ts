@@ -49,6 +49,17 @@ describe('API app', () => {
     });
   });
 
+  it('denies review-center access without a session', async () => {
+    const response = await createApp(config, auth, pool).request(
+      '/api/review-center?schemaVersion=review-center-request-v1',
+    );
+    expect(response.status).toBe(401);
+    await expect(response.json()).resolves.toMatchObject({
+      apiVersion: 'v1',
+      error: { code: 'UNAUTHENTICATED' },
+    });
+  });
+
   it('denies signature practice metadata access without a session', async () => {
     const response = await createApp(config, auth, pool).request(
       '/api/signature-practice/project',

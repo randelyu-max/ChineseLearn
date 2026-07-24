@@ -156,6 +156,7 @@ function ChoiceGroup({ compact, label, onSelect, options }: ChoiceGroupProps) {
         {options.map((option) => (
           <Pressable
             accessibilityLabel={`${label}，${option.label}`}
+            aria-checked={option.selected}
             accessibilityRole="radio"
             accessibilityState={{ checked: option.selected, disabled: option.disabled }}
             disabled={option.disabled}

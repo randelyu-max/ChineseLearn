@@ -26,9 +26,10 @@ function Choice<T extends string>({
   return (
     <View style={styles.group}>
       <Text style={styles.label}>{label}</Text>
-      <View style={styles.choices}>
+      <View accessibilityLabel={label} accessibilityRole="radiogroup" style={styles.choices}>
         {options.map((option) => (
           <Pressable
+            aria-checked={option.value === value}
             accessibilityRole="radio"
             accessibilityState={{ checked: option.value === value }}
             key={option.value}

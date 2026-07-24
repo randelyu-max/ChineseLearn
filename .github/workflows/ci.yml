@@ -41,6 +41,9 @@ jobs:
       - name: Verify portable backend boundary
         run: pnpm verify:portable-backend
 
+      - name: Verify V1 release boundaries
+        run: pnpm verify:v1-release
+
       - name: Check formatting
         run: pnpm format:check
 

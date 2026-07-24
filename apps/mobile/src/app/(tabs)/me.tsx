@@ -73,9 +73,10 @@ export default function MeScreen() {
         <Text style={styles.body}>
           “关闭”始终使用中性文案；其他选项只会选择已经人工审核并随应用提供的内容。
         </Text>
-        <View style={styles.choices}>
+        <View accessibilityLabel="文风偏好" accessibilityRole="radiogroup" style={styles.choices}>
           {humorPreferences.map((value) => (
             <Pressable
+              aria-checked={humorPreference === value}
               accessibilityRole="radio"
               accessibilityState={{ checked: humorPreference === value }}
               disabled={saving}

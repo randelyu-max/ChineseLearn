@@ -6,6 +6,7 @@ import type { HanziQuestAuth } from './auth/auth.js';
 import type { ServerConfig } from './config.js';
 import { attemptsBatchRoutes } from './routes/attempts-batch.js';
 import { profileRoutes } from './routes/profile.js';
+import { reviewCenterRoutes } from './routes/review-center.js';
 import { sessionPlanRoutes } from './routes/session-plan.js';
 import { signaturePracticeRoutes } from './routes/signature-practice.js';
 
@@ -23,6 +24,7 @@ export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool
   app.get('/health', (context) => context.json({ service: 'hanziquest-api', status: 'ok' }));
   app.on(['GET', 'POST'], '/api/auth/*', (context) => auth.handler(context.req.raw));
   app.route('/api/profile', profileRoutes(auth, pool));
+  app.route('/api/review-center', reviewCenterRoutes(auth, pool));
   app.route('/api/attempts-batch', attemptsBatchRoutes(auth, pool));
   app.route('/api/session-plan', sessionPlanRoutes(auth, pool));
   app.route('/api/signature-practice', signaturePracticeRoutes(auth, pool));

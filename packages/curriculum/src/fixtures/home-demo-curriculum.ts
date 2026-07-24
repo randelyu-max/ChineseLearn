@@ -51,13 +51,13 @@ export const homeDemoConceptIds = Object.fromEntries(
 ) as Record<string, string>;
 
 function character(entry: (typeof characterData)[number]): CharacterConcept {
-  const [simplified, traditional, pinyin, meaningZhChild, meaningEnParent] = entry;
+  const [simplified, traditional, pinyin, meaningZh, meaningEn] = entry;
   return {
     conceptId: homeDemoConceptIds[simplified]!,
     glyph: { simplified, traditional },
     pronunciations: { mandarin: [{ pinyin, isPrimary: true }] },
-    meaningZhChild,
-    meaningEnParent,
+    meaningZh,
+    meaningEn,
     difficulty: 1,
     prerequisiteConceptIds: [],
     confusableConceptIds: [],
@@ -77,7 +77,7 @@ function sentence(
     id: idValue,
     text: { simplified, traditional },
     pinyin,
-    meaningEnParent: 'A sentence from the My Home demo story.',
+    meaningEn: 'A sentence from the My Home demo story.',
     characterConceptIds: glyphs.map((glyph) => homeDemoConceptIds[glyph]!),
     targetConceptIds: [homeDemoConceptIds[target]!],
     difficulty: 1,
@@ -258,8 +258,8 @@ export const homeDemoCurriculumPackage: CurriculumPackage = {
     id: id(String(501 + index)),
     text: { simplified, traditional },
     pinyin,
-    meaningZhChild: simplified,
-    meaningEnParent: `Demo word: ${simplified}`,
+    meaningZh: simplified,
+    meaningEn: `Demo word: ${simplified}`,
     characterConceptIds: glyphs.map((glyph) => homeDemoConceptIds[glyph]!),
     targetConceptIds: [homeDemoConceptIds[glyphs[glyphs.length - 1]!]!],
     spokenFrequency: 1,

@@ -1,6 +1,6 @@
 {
   "name": "hanziquest",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "private": true,
   "packageManager": "pnpm@11.15.1",
   "engines": {
@@ -23,8 +23,9 @@
     "db:validate:static": "node scripts/validate-postgres-migrations.mjs",
     "db:test": "corepack pnpm --filter @hanziquest/api db:test",
     "verify:portable-backend": "node scripts/verify-portable-backend.mjs",
+    "verify:v1-release": "node scripts/verify-v1-release.mjs",
     "verify:no-ai": "node scripts/verify-no-ai-runtime.mjs",
-    "validate": "corepack pnpm verify:no-ai && corepack pnpm verify:portable-backend && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm content:validate && corepack pnpm db:validate:static && corepack pnpm build"
+    "validate": "corepack pnpm verify:no-ai && corepack pnpm verify:portable-backend && corepack pnpm verify:v1-release && corepack pnpm format:check && corepack pnpm lint && corepack pnpm typecheck && corepack pnpm test && corepack pnpm content:validate && corepack pnpm db:validate:static && corepack pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",

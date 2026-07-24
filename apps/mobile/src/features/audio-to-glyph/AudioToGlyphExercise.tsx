@@ -56,6 +56,7 @@ export function AudioToGlyphExercise({
           return (
             <Pressable
               accessibilityLabel={option.accessibilityLabel}
+              aria-checked={selected}
               accessibilityRole="radio"
               accessibilityState={{ checked: selected, disabled: completed }}
               disabled={completed || state.status === 'incorrect-feedback'}

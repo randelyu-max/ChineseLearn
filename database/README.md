@@ -39,3 +39,15 @@ Rollback for Task 4.3R is to stop serving `/api/attempts-batch` and disable mobi
 Before deployment, migrations `0003` and `0004` can be omitted. After deployment, never edit or
 delete them: immutable attempts remain replayable facts, and any schema rollback must be a reviewed
 forward migration or a database restore.
+
+## V1 release rehearsal
+
+Task 8.0 applied all six migrations to an isolated, no-volume PostgreSQL 17 container, ran the
+dynamic database suite, produced a custom-format backup, restored it into a second database, and
+reran the same suite. Both runs passed. The local rehearsal artifact is
+`release-backups/hanziquest-v1-release-2026-07-23.dump` with SHA-256
+`6B47DF3531EB4C3C32DAE1EE23911A94B4DD22618E77A3EE2413E0F2EDB03E19`.
+
+This artifact contains disposable local test data and is not a production backup. Production
+promotion still requires a fresh provider snapshot, recorded deployment IDs, and an isolated
+restore check. Never reset a remote database for rehearsal.

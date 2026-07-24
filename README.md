@@ -47,6 +47,12 @@ Task 7.3H publishes `humor-content-v1` version `1.0.0`: six bundled, human-edite
 The default content command and CI now validate the published package; no text is generated or
 rewritten at runtime.
 
+Task 8.2A adds a session-authenticated, forced-RLS, read-only `GET /api/review-center` endpoint.
+Its versioned contract returns bounded due/overdue summaries, all six stable groups, safe published
+content labels, deterministic estimates, and cursor pagination without changing mastery, schedules,
+attempts, or confusion state. The Review tab remains an unfinished placeholder until Task 8.2B,
+and the full release audit must be rerun as Task 9.5R.
+
 ## Canonical documents
 
 - [Product and technical design](docs/PRODUCT_TECH_DESIGN.md)
@@ -54,6 +60,11 @@ rewritten at runtime.
 - [Pivot ADR](docs/ADR/0002-v1-single-user-no-ai-pinyin-signature-humor.md)
 - [Portable PostgreSQL/API ADR](docs/ADR/0003-portable-postgresql-api-and-auth.md)
 - [Repository rules](AGENTS.md)
+- [V1 release checklist](docs/release/V1_RELEASE_CHECKLIST.md)
+- [Store metadata](docs/release/STORE_METADATA.md)
+- [Privacy notice](docs/release/PRIVACY_NOTICE.md)
+- [Rollback runbook](docs/release/ROLLBACK_RUNBOOK.md)
+- [Supported devices](docs/release/SUPPORTED_DEVICES.md)
 
 ## Repository
 
@@ -93,6 +104,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm verify:no-ai
+pnpm verify:v1-release
 pnpm db:validate:static
 pnpm db:migrate
 pnpm db:test

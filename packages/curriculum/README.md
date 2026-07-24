@@ -7,6 +7,8 @@ Key rules:
 
 - Character concepts use stable UUIDs rather than a simplified glyph as identity.
 - Every learner-facing text stores simplified and traditional forms.
+- Age-neutral meaning fields are `meaningZh` and `meaningEn`; audience-specific
+  `meaningZhChild`/`meaningEnParent` names are not part of the V1 runtime contract.
 - Curriculum and minimum app versions use semantic versions.
 - Prerequisites are explicit ID references; graph and reference integrity belong to Task 1.2.
 - Schemas are strict and infer their TypeScript types directly from Zod.
