@@ -9,7 +9,6 @@ import { withUserTransaction } from '../db/pool.js';
 import {
   loadReviewCenter,
   resolveReviewCenterPagination,
-  ReviewCenterCapacityError,
   ReviewCenterCursorError,
 } from '../review-center-service.js';
 
@@ -36,7 +35,7 @@ function errorBody(code: string, message: string, id: string, retryable = false)
   } as const;
 }
 
-export function reviewCenterRoutes(auth: HanziQuestAuth, pool: Pool) {
+export function reviewCenterRoutes(auth: HanziQuestAuth, pool: Pool, cursorSecret: string) {
   const routes = new Hono<RouteEnvironment>();
   routes.use('*', async (context, next) => {
     const session = await auth.api.getSession({ headers: context.req.raw.headers });
@@ -58,7 +57,7 @@ export function reviewCenterRoutes(auth: HanziQuestAuth, pool: Pool) {
       );
     }
     try {
-      const pagination = resolveReviewCenterPagination(parsed.data, new Date());
+      const pagination = resolveReviewCenterPagination(parsed.data, new Date(), cursorSecret);
       const data = await withUserTransaction(pool, context.get('userId'), (client) =>
         loadReviewCenter(client, context.get('userId'), pagination),
       );
@@ -73,17 +72,6 @@ export function reviewCenterRoutes(auth: HanziQuestAuth, pool: Pool) {
     } catch (error) {
       if (error instanceof ReviewCenterCursorError) {
         return context.json(errorBody('REVIEW_CENTER_CURSOR_INVALID', error.message, id), 400);
-      }
-      if (error instanceof ReviewCenterCapacityError) {
-        return context.json(
-          errorBody(
-            'REVIEW_CENTER_CAPACITY_EXCEEDED',
-            'The review center is temporarily too large to load.',
-            id,
-            true,
-          ),
-          503,
-        );
       }
       console.error('review-center request failed', {
         code: 'REVIEW_CENTER_FAILED',

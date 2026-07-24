@@ -154,6 +154,15 @@ try {
     [curriculumVersion, 'a'.repeat(64)],
   );
   await client.query(
+    `insert into public.active_curriculum_releases (
+       spoken_track, script_track, curriculum_version_id
+     ) values ('mandarin', 'simplified', $1)
+     on conflict (spoken_track, script_track) do update
+       set curriculum_version_id = excluded.curriculum_version_id,
+           activated_at = now()`,
+    [curriculumVersion],
+  );
+  await client.query(
     `insert into public.worlds (
        id, curriculum_version_id, slug, sort_order, title_zh, title_en, is_published
      ) values ($1, $2, 'test-world', 0, '测试世界', 'Test world', true)`,
@@ -2280,9 +2289,32 @@ try {
     countsBeforeReviewRead,
     'Review Center reads must not mutate attempts, skill state, schedules, or confusion stats',
   );
+  const planClient = await pool.connect();
+  await planClient.query('begin');
+  await planClient.query('set local enable_seqscan = off');
+  const reviewPlan = await planClient.query<{ 'QUERY PLAN': string }>(
+    `explain (costs off)
+     select concept_type, concept_id, skill, due_at
+     from public.review_schedule
+     where user_id = $1 and due_at <= now()
+     order by due_at, concept_type, concept_id, skill
+     limit 51`,
+    [userA],
+  );
+  await planClient.query('rollback');
+  planClient.release();
+  assert.match(
+    reviewPlan.rows.map((row) => row['QUERY PLAN']).join('\n'),
+    /review_schedule_(due_keyset|user_due)_idx/,
+    'Review due keyset query must use a bounded user/due index plan',
+  );
 
   await pool.query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]]);
   await removePublishedPinyinFixture();
+  await pool.query(
+    `delete from public.active_curriculum_releases where curriculum_version_id = $1`,
+    [curriculumVersion],
+  );
   await pool.query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion]);
   await pool.query(`delete from public.confusable_pairs where id = $1`, [confusionPair]);
   await pool.query(`delete from public.characters where id = any($1::uuid[])`, [
@@ -2297,6 +2329,11 @@ try {
     .query(`delete from public."user" where id = any($1::uuid[])`, [[userA, userB]])
     .catch(() => undefined);
   await removePublishedPinyinFixture().catch(() => undefined);
+  await pool
+    .query(`delete from public.active_curriculum_releases where curriculum_version_id = $1`, [
+      curriculumVersion,
+    ])
+    .catch(() => undefined);
   await pool
     .query(`delete from public.curriculum_versions where id = $1`, [curriculumVersion])
     .catch(() => undefined);

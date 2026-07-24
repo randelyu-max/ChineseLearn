@@ -46,7 +46,7 @@ describe('review-center service', () => {
   it('returns the complete deterministic empty state and next scheduled time', () => {
     const result = buildReviewCenterResponse(
       [scheduled('hanzi', 'character:future', '2026-07-25T08:00:00.000Z')],
-      { generatedAt, limit: 20, offset: 0 },
+      { generatedAt, limit: 20, lastPriority: null, lastDueAt: null, lastReviewKey: null },
     );
     expect(result.summary).toEqual({
       dueNowCount: 0,
@@ -98,7 +98,13 @@ describe('review-center service', () => {
       }),
     ];
 
-    const result = buildReviewCenterResponse(rows, { generatedAt, limit: 20, offset: 0 });
+    const result = buildReviewCenterResponse(rows, {
+      generatedAt,
+      limit: 20,
+      lastPriority: null,
+      lastDueAt: null,
+      lastReviewKey: null,
+    });
     expect(result.items.map((item) => item.contentRef)).toEqual([
       'confusion:one-two',
       'word:one',
@@ -130,7 +136,13 @@ describe('review-center service', () => {
       scheduled('word', 'word:b', '2026-07-22T08:00:00.000Z'),
       scheduled('sentence', 'sentence:c', '2026-07-23T08:00:00.000Z'),
     ];
-    const first = buildReviewCenterResponse(rows, { generatedAt, limit: 2, offset: 0 });
+    const first = buildReviewCenterResponse(rows, {
+      generatedAt,
+      limit: 2,
+      lastPriority: null,
+      lastDueAt: null,
+      lastReviewKey: null,
+    });
     expect(first.pageInfo.hasMore).toBe(true);
     expect(first.items).toHaveLength(2);
     const pagination = resolveReviewCenterPagination(
@@ -159,5 +171,58 @@ describe('review-center service', () => {
         generatedAt,
       ),
     ).toThrow(ReviewCenterCursorError);
+  });
+
+  it('rejects a structurally valid cursor after its keyset tuple is tampered', () => {
+    const rows = [
+      scheduled('hanzi', 'character:a', '2026-07-21T08:00:00.000Z'),
+      scheduled('word', 'word:b', '2026-07-22T08:00:00.000Z'),
+    ];
+    const first = buildReviewCenterResponse(rows, {
+      generatedAt,
+      limit: 1,
+      lastPriority: null,
+      lastDueAt: null,
+      lastReviewKey: null,
+    });
+    const decoded = JSON.parse(
+      Buffer.from(first.pageInfo.nextCursor!, 'base64url').toString('utf8'),
+    );
+    const tampered = Buffer.from(
+      JSON.stringify({ ...decoded, lastReviewKey: 'review:forged' }),
+    ).toString('base64url');
+    expect(() =>
+      resolveReviewCenterPagination(
+        { schemaVersion: 'review-center-request-v1', cursor: tampered, limit: 1 },
+        generatedAt,
+      ),
+    ).toThrow(ReviewCenterCursorError);
+  });
+
+  it('keeps keyset pages stable when an earlier due row appears between requests', () => {
+    const original = [
+      scheduled('hanzi', 'character:a', '2026-07-21T08:00:00.000Z'),
+      scheduled('word', 'word:b', '2026-07-22T08:00:00.000Z'),
+      scheduled('sentence', 'sentence:c', '2026-07-23T08:00:00.000Z'),
+    ];
+    const first = buildReviewCenterResponse(original, {
+      generatedAt,
+      limit: 2,
+      lastPriority: null,
+      lastDueAt: null,
+      lastReviewKey: null,
+    });
+    const second = buildReviewCenterResponse(
+      [scheduled('tone', 'tone:new', '2026-07-20T08:00:00.000Z'), ...original],
+      resolveReviewCenterPagination(
+        {
+          schemaVersion: 'review-center-request-v1',
+          cursor: first.pageInfo.nextCursor!,
+          limit: 2,
+        },
+        new Date('2030-01-01T00:00:00.000Z'),
+      ),
+    );
+    expect(second.items.map((item) => item.contentRef)).toEqual(['sentence:c']);
   });
 });

@@ -10,14 +10,16 @@ import {
   type ReviewCenterReasonCode,
   type ReviewCenterResponseData,
 } from '@hanziquest/contracts';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import type { PoolClient } from 'pg';
 
-const MAX_REVIEW_SOURCE_ROWS = 5_000;
-
 export type ReviewCenterPagination = Readonly<{
+  cursorSecret?: string;
   generatedAt: Date;
   limit: number;
-  offset: number;
+  lastPriority: 0 | 1 | null;
+  lastDueAt: Date | null;
+  lastReviewKey: string | null;
 }>;
 
 export type ReviewCenterSourceRow = Readonly<{
@@ -36,39 +38,56 @@ export type ReviewCenterSourceRow = Readonly<{
 }>;
 
 type DatabaseReviewRow = {
-  source: 'schedule' | 'confusion';
-  review_key: string;
-  kind: ReviewCenterKind;
-  content_ref: string;
-  display_label: string;
+  source: 'schedule' | 'confusion' | null;
+  review_key: string | null;
+  kind: ReviewCenterKind | null;
+  content_ref: string | null;
+  display_label: string | null;
   secondary_label: string | null;
-  due_at: Date;
-  reason_code: ReviewCenterReasonCode;
-  estimated_seconds: number;
+  due_at: Date | null;
+  reason_code: ReviewCenterReasonCode | null;
+  estimated_seconds: number | null;
   recommended_activity_type: string | null;
   recommended_pinyin_policy: 'always' | 'adaptive' | 'tap_to_reveal' | 'hidden' | null;
-  related_content_refs: string[];
+  related_content_refs: string[] | null;
+  due_now_count: number;
+  overdue_count: number;
+  estimated_seconds_total: number;
+  next_due_at: Date | null;
+  group_counts: Record<ReviewCenterKind, { count: number; overdueCount: number }>;
 };
 
 export class ReviewCenterCursorError extends Error {}
-export class ReviewCenterCapacityError extends Error {}
 
-function encodeCursor(generatedAt: Date, offset: number): string {
+function signature(payload: Record<string, unknown>, secret: string): string {
+  return createHmac('sha256', secret).update(JSON.stringify(payload)).digest('hex');
+}
+
+function encodeCursor(generatedAt: Date, row: ReviewCenterSourceRow, secret: string): string {
+  const payload = {
+    schemaVersion: REVIEW_CENTER_CURSOR_SCHEMA_VERSION,
+    generatedAt: generatedAt.toISOString(),
+    lastPriority: row.dueAt.getTime() < generatedAt.getTime() ? 1 : 0,
+    lastDueAt: row.dueAt.toISOString(),
+    lastReviewKey: row.reviewKey,
+  };
   return Buffer.from(
-    JSON.stringify({
-      schemaVersion: REVIEW_CENTER_CURSOR_SCHEMA_VERSION,
-      generatedAt: generatedAt.toISOString(),
-      offset,
-    }),
+    JSON.stringify({ ...payload, signature: signature(payload, secret) }),
     'utf8',
   ).toString('base64url');
 }
 
-function decodeCursor(cursor: string) {
+function decodeCursor(cursor: string, secret: string) {
   try {
-    return ReviewCenterCursorPayloadSchema.parse(
+    const decoded = ReviewCenterCursorPayloadSchema.parse(
       JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')),
     );
+    const { signature: supplied, ...payload } = decoded;
+    const expected = Buffer.from(signature(payload, secret), 'hex');
+    const received = Buffer.from(supplied, 'hex');
+    if (expected.length !== received.length || !timingSafeEqual(expected, received))
+      throw new Error();
+    return decoded;
   } catch {
     throw new ReviewCenterCursorError('The review-center cursor is invalid.');
   }
@@ -77,19 +96,30 @@ function decodeCursor(cursor: string) {
 export function resolveReviewCenterPagination(
   query: ReviewCenterQuery,
   now: Date,
+  cursorSecret = 'review-center-test-secret',
 ): ReviewCenterPagination {
   if (query.cursor) {
-    const cursor = decodeCursor(query.cursor);
+    const cursor = decodeCursor(query.cursor, cursorSecret);
     return Object.freeze({
       generatedAt: new Date(cursor.generatedAt),
+      cursorSecret,
       limit: query.limit,
-      offset: cursor.offset,
+      lastPriority: cursor.lastPriority as 0 | 1,
+      lastDueAt: new Date(cursor.lastDueAt),
+      lastReviewKey: cursor.lastReviewKey,
     });
   }
   if (!Number.isFinite(now.getTime())) {
     throw new ReviewCenterCursorError('The review-center clock is invalid.');
   }
-  return Object.freeze({ generatedAt: new Date(now), limit: query.limit, offset: 0 });
+  return Object.freeze({
+    cursorSecret,
+    generatedAt: new Date(now),
+    limit: query.limit,
+    lastPriority: null,
+    lastDueAt: null,
+    lastReviewKey: null,
+  });
 }
 
 function sourceComparator(left: ReviewCenterSourceRow, right: ReviewCenterSourceRow): number {
@@ -175,9 +205,20 @@ export function buildReviewCenterResponse(
   pagination: ReviewCenterPagination,
 ): ReviewCenterResponseData {
   const due = dueRows(sourceRows, pagination.generatedAt);
-  const items = due.slice(pagination.offset, pagination.offset + pagination.limit);
-  const nextOffset = pagination.offset + items.length;
-  const hasMore = nextOffset < due.length;
+  const afterCursor = due.filter((row) => {
+    if (pagination.lastPriority === null || !pagination.lastDueAt || !pagination.lastReviewKey)
+      return true;
+    const priority = row.dueAt.getTime() < pagination.generatedAt.getTime() ? 1 : 0;
+    return (
+      priority < pagination.lastPriority ||
+      (priority === pagination.lastPriority &&
+        (row.dueAt > pagination.lastDueAt ||
+          (row.dueAt.getTime() === pagination.lastDueAt.getTime() &&
+            row.reviewKey > pagination.lastReviewKey)))
+    );
+  });
+  const items = afterCursor.slice(0, pagination.limit);
+  const hasMore = afterCursor.length > items.length;
   const groups = reviewCenterKinds.map((kind) => {
     const matching = due.filter((row) => row.kind === kind);
     return {
@@ -209,13 +250,31 @@ export function buildReviewCenterResponse(
     groups,
     items: items.map((row) => responseItem(row, pagination.generatedAt)),
     pageInfo: {
-      nextCursor: hasMore ? encodeCursor(pagination.generatedAt, nextOffset) : null,
+      nextCursor: hasMore
+        ? encodeCursor(
+            pagination.generatedAt,
+            items.at(-1)!,
+            pagination.cursorSecret ?? 'review-center-test-secret',
+          )
+        : null,
       hasMore,
     },
   });
 }
 
 function sourceRow(row: DatabaseReviewRow): ReviewCenterSourceRow {
+  if (
+    !row.source ||
+    !row.review_key ||
+    !row.kind ||
+    !row.content_ref ||
+    !row.display_label ||
+    !row.due_at ||
+    !row.reason_code ||
+    row.estimated_seconds === null
+  ) {
+    throw new Error('The review-center page row is incomplete.');
+  }
   return Object.freeze({
     source: row.source,
     reviewKey: row.review_key,
@@ -228,7 +287,7 @@ function sourceRow(row: DatabaseReviewRow): ReviewCenterSourceRow {
     estimatedSeconds: row.estimated_seconds,
     recommendedActivityType: row.recommended_activity_type,
     recommendedPinyinPolicy: row.recommended_pinyin_policy,
-    relatedContentRefs: Object.freeze(row.related_content_refs),
+    relatedContentRefs: Object.freeze(row.related_content_refs ?? []),
   });
 }
 
@@ -244,11 +303,14 @@ export async function loadReviewCenter(
        where id = $1
      ),
      active_curriculum as (
-       select id
-       from public.curriculum_versions
-       where status = 'published'
-       order by published_at desc nulls last, created_at desc, id
-       limit 1
+       select cv.id
+       from profile_settings ps
+       join public.active_curriculum_releases acr
+         on acr.spoken_track = 'mandarin'
+        and acr.script_track = ps.script_preference::public.script_track
+       join public.curriculum_versions cv
+         on cv.id = acr.curriculum_version_id
+        and cv.status = 'published'
      ),
      published_lessons as (
        select l.id
@@ -366,6 +428,13 @@ export async function loadReviewCenter(
        where user_id = $1
        order by concept_type, concept_id, skill, device_event_at desc, received_at desc, id desc
      ),
+     hint_dependencies as (
+       select distinct concept_type, concept_id
+       from public.attempt_evidence
+       where user_id = $1
+         and ability_axis = 'hanzi_recognition'
+         and support_multiplier < 1
+     ),
      scheduled as (
        select
          'schedule'::text as source,
@@ -384,7 +453,13 @@ export async function loadReviewCenter(
          pc.secondary_label,
          r.due_at,
          case
-           when r.skill::text = 'glyph_to_sound' then 'pinyin_dependency'
+           when r.skill::text = 'glyph_to_sound'
+             and exists (
+               select 1
+               from hint_dependencies hd
+               where hd.concept_type = r.concept_type::text
+                 and hd.concept_id = r.concept_id::text
+             ) then 'pinyin_dependency'
            when la.correct = false or r.due_reason = 'lapse_or_full_hint' then 'recent_error'
            when r.due_reason in ('retrieval_success', 'low_effective_mastery')
              or ss.stable_mastery_at is not null then 'stability_check'
@@ -442,27 +517,130 @@ export async function loadReviewCenter(
        select * from scheduled
        union all
        select * from confusions
+     ),
+     due_confusions as (
+       select distinct on (content_ref) *
+       from source_rows
+       where source = 'confusion' and due_at <= $2
+       order by content_ref, due_at, review_key
+     ),
+     confusion_refs as (
+       select distinct unnest(related_content_refs) as content_ref
+       from due_confusions
+     ),
+     due_scheduled as (
+       select distinct on (content_ref) *
+       from source_rows
+       where source = 'schedule'
+         and due_at <= $2
+         and content_ref not in (select content_ref from confusion_refs)
+       order by content_ref,
+         case reason_code
+           when 'recent_error' then 0
+           when 'pinyin_dependency' then 1
+           when 'stability_check' then 2
+           else 3
+         end,
+         due_at,
+         review_key
+     ),
+     due_items as (
+       select * from due_confusions
+       union all
+       select * from due_scheduled
+     ),
+     summary as (
+       select
+         coalesce(sum(kind_count), 0)::integer as due_now_count,
+         coalesce(sum(overdue_kind_count), 0)::integer as overdue_count,
+         coalesce(sum(estimated_seconds), 0)::integer as estimated_seconds_total,
+         jsonb_object_agg(kind, jsonb_build_object(
+           'count', kind_count,
+           'overdueCount', overdue_kind_count
+         )) as group_counts
+       from (
+         select
+           kind,
+           count(*)::integer as kind_count,
+           count(*) filter (where due_at < $2)::integer as overdue_kind_count,
+           min(due_at) as due_at,
+           sum(estimated_seconds)::integer as estimated_seconds
+         from due_items
+         group by kind
+       ) grouped
+     ),
+     future as (
+       select min(due_at) as next_due_at
+       from source_rows
+       where due_at > $2
+     ),
+     page as (
+       select *
+       from due_items
+       where $3::integer is null
+          or case when due_at < $2 then 1 else 0 end < $3::integer
+          or (
+            case when due_at < $2 then 1 else 0 end = $3::integer
+            and (due_at, review_key) > ($4::timestamptz, $5::text)
+          )
+       order by
+         case when due_at < $2 then 1 else 0 end desc,
+         due_at,
+         review_key
+       limit $6
      )
      select
-       source,
-       review_key,
-       kind,
-       content_ref,
-       display_label,
-       secondary_label,
-       due_at,
-       reason_code,
-       estimated_seconds,
-       recommended_activity_type,
-       recommended_pinyin_policy,
-       related_content_refs
-     from source_rows
-     order by due_at, review_key
-     limit $2`,
-    [userId, MAX_REVIEW_SOURCE_ROWS + 1],
+       page.*,
+       summary.due_now_count,
+       summary.overdue_count,
+       summary.estimated_seconds_total,
+       coalesce(summary.group_counts, '{}'::jsonb) as group_counts,
+       future.next_due_at
+     from summary
+     cross join future
+     left join page on true`,
+    [
+      userId,
+      pagination.generatedAt,
+      pagination.lastPriority,
+      pagination.lastDueAt,
+      pagination.lastReviewKey,
+      pagination.limit + 1,
+    ],
   );
-  if (result.rows.length > MAX_REVIEW_SOURCE_ROWS) {
-    throw new ReviewCenterCapacityError('The review-center source row limit was exceeded.');
-  }
-  return buildReviewCenterResponse(result.rows.map(sourceRow), pagination);
+  const metadata = result.rows[0];
+  const pageRows = result.rows.filter((row) => row.review_key !== null);
+  const hasMore = pageRows.length > pagination.limit;
+  const visibleRows = pageRows.slice(0, pagination.limit).map(sourceRow);
+  const groups = reviewCenterKinds.map((kind) => ({
+    kind,
+    count: metadata?.group_counts?.[kind]?.count ?? 0,
+    overdueCount: metadata?.group_counts?.[kind]?.overdueCount ?? 0,
+  }));
+  return ReviewCenterResponseDataSchema.parse({
+    schemaVersion: REVIEW_CENTER_SCHEMA_VERSION,
+    generatedAt: pagination.generatedAt.toISOString(),
+    summary: {
+      dueNowCount: metadata?.due_now_count ?? 0,
+      overdueCount: metadata?.overdue_count ?? 0,
+      estimatedMinutes:
+        metadata && metadata.estimated_seconds_total > 0
+          ? Math.ceil(metadata.estimated_seconds_total / 60)
+          : 0,
+      nextDueAt: metadata?.next_due_at?.toISOString() ?? null,
+    },
+    groups,
+    items: visibleRows.map((row) => responseItem(row, pagination.generatedAt)),
+    pageInfo: {
+      hasMore,
+      nextCursor:
+        hasMore && visibleRows.length > 0
+          ? encodeCursor(
+              pagination.generatedAt,
+              visibleRows.at(-1)!,
+              pagination.cursorSecret ?? 'review-center-test-secret',
+            )
+          : null,
+    },
+  });
 }

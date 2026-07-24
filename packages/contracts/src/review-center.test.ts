@@ -79,23 +79,32 @@ describe('review-center contracts', () => {
     ).toBe(false);
   });
 
-  it('validates the opaque cursor payload version, UTC snapshot, and bounded offset', () => {
+  it('validates the signed keyset cursor payload version and tuple', () => {
     expect(
       ReviewCenterCursorPayloadSchema.parse({
         schemaVersion: REVIEW_CENTER_CURSOR_SCHEMA_VERSION,
         generatedAt: validData.generatedAt,
-        offset: 20,
+        lastPriority: 1,
+        lastDueAt: validData.generatedAt,
+        lastReviewKey: 'review:character:one:audio_to_glyph',
+        signature: 'a'.repeat(64),
       }),
     ).toEqual({
       schemaVersion: REVIEW_CENTER_CURSOR_SCHEMA_VERSION,
       generatedAt: validData.generatedAt,
-      offset: 20,
+      lastPriority: 1,
+      lastDueAt: validData.generatedAt,
+      lastReviewKey: 'review:character:one:audio_to_glyph',
+      signature: 'a'.repeat(64),
     });
     expect(
       ReviewCenterCursorPayloadSchema.safeParse({
         schemaVersion: REVIEW_CENTER_CURSOR_SCHEMA_VERSION,
         generatedAt: '2026-07-24T08:00:00',
-        offset: -1,
+        lastPriority: -1,
+        lastDueAt: validData.generatedAt,
+        lastReviewKey: 'key',
+        signature: 'a'.repeat(64),
       }).success,
     ).toBe(false);
   });

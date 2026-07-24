@@ -134,3 +134,10 @@ entry and active-Session progress view rather than a six-demo page.
 No API contract, learning algorithm, database migration, dependency, or lockfile changed. The next
 and only dependency-scoped task is `8.2A-H — Review Center pagination, ordering, and performance
 hardening`.
+
+## Task 8.2A-H completion checkpoint
+
+Task 8.2A-H completed on 2026-07-24. Review Center now uses a signed fixed-clock keyset cursor and
+a bounded PostgreSQL read model. Active Curriculum selection is explicit by spoken/script track,
+and `pinyin_dependency` requires observed reduced-support Hanzi Evidence. The next unique task is
+`8.2B-R — formal mobile Review Center`.

@@ -89,7 +89,9 @@ describe('review-center route', () => {
     const sourceCall = query.mock.calls.find(([sql]) =>
       String(sql).includes('with profile_settings'),
     );
-    expect(sourceCall?.[1]).toEqual([userId, 5001]);
+    expect(sourceCall?.[1]?.[0]).toBe(userId);
+    expect(sourceCall?.[1]?.[1]).toBeInstanceOf(Date);
+    expect(sourceCall?.[1]?.slice(2)).toEqual([null, null, null, 11]);
     const sql = query.mock.calls.map(([text]) => String(text).toLowerCase()).join('\n');
     expect(sql).not.toMatch(/\b(insert|update|delete|merge|truncate)\b/);
     expect(client.release).toHaveBeenCalledOnce();

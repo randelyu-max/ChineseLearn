@@ -25,7 +25,7 @@ export function createApp(config: ServerConfig, auth: HanziQuestAuth, pool: Pool
   app.get('/health', (context) => context.json({ service: 'hanziquest-api', status: 'ok' }));
   app.on(['GET', 'POST'], '/api/auth/*', (context) => auth.handler(context.req.raw));
   app.route('/api/profile', profileRoutes(auth, pool));
-  app.route('/api/review-center', reviewCenterRoutes(auth, pool));
+  app.route('/api/review-center', reviewCenterRoutes(auth, pool, config.authSecret));
   app.route('/api/attempts-batch', attemptsBatchRoutes(auth, pool));
   app.route('/api/session-plan', sessionPlanRoutes(auth, pool));
   app.route('/api/sessions', sessionRoutes(auth, pool));

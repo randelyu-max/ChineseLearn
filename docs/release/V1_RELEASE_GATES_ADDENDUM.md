@@ -28,7 +28,7 @@
 - [ ] 13+ 内容；
 - [ ] 幽默接入正式 Session；
 - [ ] 姓名书写覆盖报告；
-- [ ] Keyset Review pagination；
+- [x] Keyset Review pagination（8.2A-H，2026-07-24）；
 - [ ] VoiceOver/TalkBack；
 - [ ] audio/editorial review。
 

@@ -5,7 +5,7 @@ import { UtcDateTimeSchema } from './time.ts';
 
 export const REVIEW_CENTER_REQUEST_SCHEMA_VERSION = 'review-center-request-v1' as const;
 export const REVIEW_CENTER_SCHEMA_VERSION = 'review-center-v1' as const;
-export const REVIEW_CENTER_CURSOR_SCHEMA_VERSION = 'review-center-cursor-v1' as const;
+export const REVIEW_CENTER_CURSOR_SCHEMA_VERSION = 'review-center-cursor-v2' as const;
 export const REVIEW_CENTER_MAX_PAGE_SIZE = 50;
 
 export const reviewCenterKinds = Object.freeze([
@@ -46,7 +46,10 @@ export const ReviewCenterCursorPayloadSchema = z
   .object({
     schemaVersion: z.literal(REVIEW_CENTER_CURSOR_SCHEMA_VERSION),
     generatedAt: UtcDateTimeSchema,
-    offset: z.number().int().nonnegative().max(100_000),
+    lastPriority: z.number().int().min(0).max(1),
+    lastDueAt: UtcDateTimeSchema,
+    lastReviewKey: z.string().trim().min(1).max(256),
+    signature: z.string().regex(/^[a-f0-9]{64}$/),
   })
   .strict();
 
